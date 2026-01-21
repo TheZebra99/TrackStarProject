@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
 import '../../widgets/custom_button.dart';
+import '../main_navigation.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 
@@ -35,10 +36,12 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = false);
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login successful!')),
+        // Navigate to main navigation (feed page)
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const MainNavigation(), // navigacija na feed
+          ),
         );
-        // Navigacija na Home screen...
       }
     }
   }

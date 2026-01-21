@@ -1,4 +1,4 @@
-import 'package:trackstar/screens/home_screen.dart';
+import 'package:trackstar/screens/main_navigation.dart';
 import 'package:trackstar/services/database_service.dart';
 import 'package:trackstar/models/user.dart';
 import 'package:flutter/material.dart';
@@ -67,13 +67,9 @@ class _SignupScreenState extends State<SignupScreen> {
       setState(() => _isLoading = false);
       
       if (mounted) { // prevent errors with mounted, if the widget is still on screen
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registracija uspešna!')),
-        );
-        //Navigator.pop(context); // go back to the previous screen (Login)
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        // Navigate to main navigation (feed page)
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainNavigation()),
         );
       }
     }

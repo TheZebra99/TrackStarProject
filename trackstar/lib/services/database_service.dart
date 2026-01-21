@@ -22,7 +22,7 @@ class DatabaseService {
       // When the database is first created, create a table to store users
       onCreate: (db, version) {
         return db.execute(
-          'CREATE TABLE Users(id INTEGER PRIMARY KEY, name TEXT, email TEXT, password TEXT)',
+          'CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT, email TEXT, password TEXT)',
         );
       },
       // Set the version. This executes the onCreate function and provides a
@@ -98,10 +98,26 @@ class DatabaseService {
   }
 
   Future<User?> getUserByEmail(String email) async {
-  // Query database WHERE email = ?
-  // Return User if found, null if not found
+    // Query database WHERE email = ?
+    // Return User if found, null if not found
     final db = await database;
     
-    await db.rawQuery('SELECT * from USERS WHERE email = $email');
+    final List<Map<String, Object?>> results = await db.query(
+      'users',
+      where: 'email = ?',
+      whereArgs: [email],
+    );
+    
+    if (results.isEmpty) {
+      return null;
+    }
+    
+    final userMap = results.first;
+    return User(
+      id: userMap['id'] as int?,
+      name: userMap['name'] as String,
+      email: userMap['email'] as String,
+      password: userMap['password'] as String,
+    );
   }
 }

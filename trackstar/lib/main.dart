@@ -28,4 +28,3 @@ class TrackStarApp extends StatelessWidget {
     );
   }
 }
-

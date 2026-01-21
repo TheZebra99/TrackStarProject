@@ -1,3 +1,6 @@
+import 'package:trackstar/screens/home_screen.dart';
+import 'package:trackstar/services/database_service.dart';
+import 'package:trackstar/models/user.dart';
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
 import '../../widgets/custom_button.dart';
@@ -10,8 +13,9 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
+  final DatabaseService _databaseService = DatabaseService.instance;
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  final _nameController = TextEditingController(); // use text controllers to extract value from text field
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -29,6 +33,7 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
+  // onPressed button functionality
   void _handleSignup() async {
     if (!_agreeToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -42,17 +47,34 @@ class _SignupScreenState extends State<SignupScreen> {
 
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      
-      // Implementirati registraciju kasnije...
-      await Future.delayed(const Duration(seconds: 2));
+
+      final int? user_id = null;
+      final String user_name = _nameController.text;
+      final String user_email = _emailController.text;
+      final String user_password = _passwordController.text;
+
+      final User new_user = new User(
+        id: user_id,
+        name: user_name,
+        email: user_email,
+        password: user_password,
+      );
+
+      await _databaseService.insertUser(new_user);
+
+      //print(await _databaseService.getUsers()); // debug statement for testing
       
       setState(() => _isLoading = false);
       
-      if (mounted) {
+      if (mounted) { // prevent errors with mounted, if the widget is still on screen
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Registracija uspešna!')),
         );
-        Navigator.pop(context); // Vrati se na login
+        //Navigator.pop(context); // go back to the previous screen (Login)
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
       }
     }
   }
@@ -85,7 +107,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Popunite podatke da započnete',
+                  'Popunite sledece podatke:',
                   style: TextStyle(
                     fontSize: 16,
                     color: AppColors.textGrey,
@@ -100,7 +122,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
                     labelText: 'Puno ime',
-                    hintText: 'Ime Prezime',
+                    hintText: 'Ime i Prezime',
                     prefixIcon: const Icon(Icons.person_outline),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),

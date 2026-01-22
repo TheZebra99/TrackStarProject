@@ -4,6 +4,21 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+
+	<key>NSLocationWhenInUseUsageDescription</key>
+    <string>Potrebna nam je vaša lokacija da bismo pratili vaše aktivnosti</string>
+    
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>Potrebna nam je vaša lokacija da bismo pratili vaše aktivnosti</string>
+    
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Potrebna nam je vaša lokacija da bismo pratili vaše aktivnosti</string>
+
+	<key>UIBackgroundModes</key>
+    <array>
+        <string>location</string>
+    </array>
+
 	<key>CFBundleDisplayName</key>
 	<string>Trackstar</string>
 	<key>CFBundleExecutable</key>

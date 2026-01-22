@@ -1,5 +1,6 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:trackstar/models/activity.dart';
 import 'package:trackstar/models/user.dart';
 
 class DatabaseService {
@@ -19,24 +20,57 @@ class DatabaseService {
     // Open the database and store the reference
     final database = openDatabase(
       join(await getDatabasesPath(), 'main_database.db'),
-      // When the database is first created, create a table to store users
-      onCreate: (db, version) {
-        return db.execute(
+      // When the database is first created, create tables
+      onCreate: (db, version) async {
+        // Create users table
+        await db.execute(
           'CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT, email TEXT, password TEXT)',
         );
+        
+        // Create activities table
+        await db.execute(
+          '''CREATE TABLE activities(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            distance REAL NOT NULL,
+            duration INTEGER NOT NULL,
+            avgSpeed REAL NOT NULL,
+            startTime TEXT NOT NULL,
+            endTime TEXT,
+            routePolyline TEXT,
+            userId INTEGER NOT NULL,
+            FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
+          )''',
+        );
       },
-      // Set the version. This executes the onCreate function and provides a
-      // path to perform database upgrades and downgrades.
-      version: 1,
+      version: 2,
+      // Handle database upgrades
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Add activities table if upgrading from version 1
+          await db.execute(
+            '''CREATE TABLE activities(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              type TEXT NOT NULL,
+              distance REAL NOT NULL,
+              duration INTEGER NOT NULL,
+              avgSpeed REAL NOT NULL,
+              startTime TEXT NOT NULL,
+              endTime TEXT,
+              routePolyline TEXT,
+              userId INTEGER NOT NULL,
+              FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
+            )''',
+          );
+        }
+      },
     );
     return database;
   }
 
   Future<void> insertUser(User user) async {
-    // Get a reference to the database.
     final db = await database;
 
-    // Insert the User into the correct table
     await db.insert(
       'users',
       user.toMap(),
@@ -44,15 +78,12 @@ class DatabaseService {
     );
   }
 
-  // A method that retrieves all the users from the users table.
   Future<List<User>> getUsers() async {
-    // Get a reference to the database.
-    final db = await database;
+    final db = await database; // reference to the database
 
-    // Query the table for all the users.
     final List<Map<String, Object?>> userMaps = await db.query('users');
 
-    // Convert the list of each user's fields into a list of `User` objects.
+    // Convert the list of each user's fields into a list of `User` objects
     return [
       for (final {
           'id': id as int, 
@@ -70,29 +101,22 @@ class DatabaseService {
   }
 
   Future<void> updateUser(User user) async {
-    // Get a reference to the database.
-    final db = await database;
+    final db = await database; // reference to the database
 
-    // Update the given User.
     await db.update(
       'users',
       user.toMap(),
-      // Ensure that the User has a matching id.
       where: 'id = ?',
-      // Pass the Users's id as a whereArg to prevent SQL injection.
       whereArgs: [user.id],
     );
   }
 
   Future<void> deleteUser(int? id) async {
-    // Get a reference to the database.
-    final db = await database;
+    final db = await database; // reference to the database
 
     await db.delete(
       'users',
-      // Use a `where` clause to delete a specific user.
       where: 'id = ?',
-      // Pass the User's id as a whereArg to prevent SQL injection.
       whereArgs: [id],
     );
   }
@@ -118,6 +142,90 @@ class DatabaseService {
       name: userMap['name'] as String,
       email: userMap['email'] as String,
       password: userMap['password'] as String,
+    );
+  }
+
+  // activity methods
+  Future<int> insertActivity(Activity activity) async {
+    final db = await database;
+    final id = await db.insert(
+      'activities',
+      activity.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    return id;
+  }
+
+  Future<List<Activity>> getActivitiesByUser(int userId) async {
+    final db = await database;
+    final List<Map<String, Object?>> activityMaps = await db.query(
+      'activities',
+      where: 'userId = ?',
+      whereArgs: [userId],
+      orderBy: 'startTime DESC', // Most recent first
+    );
+
+    return activityMaps.map((map) => Activity.fromMap(map)).toList();
+  }
+
+  /// Get activities from the last 7 days for a specific user
+  Future<List<Activity>> getActivitiesThisWeek(int userId) async {
+    final db = await database;
+    final now = DateTime.now();
+    final weekAgo = now.subtract(const Duration(days: 7));
+
+    final List<Map<String, Object?>> activityMaps = await db.query(
+      'activities',
+      where: 'userId = ? AND startTime >= ?',
+      whereArgs: [userId, weekAgo.toIso8601String()],
+      orderBy: 'startTime DESC',
+    );
+
+    return activityMaps.map((map) => Activity.fromMap(map)).toList();
+  }
+
+  Future<Map<String, dynamic>> getUserStats(int userId) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      '''SELECT 
+        COUNT(*) as totalActivities,
+        SUM(distance) as totalDistance,
+        SUM(duration) as totalDuration
+      FROM activities 
+      WHERE userId = ?''',
+      [userId],
+    );
+
+    if (result.isEmpty) {
+      return {
+        'totalActivities': 0,
+        'totalDistance': 0.0,
+        'totalDuration': 0,
+      };
+    }
+
+    return {
+      'totalActivities': result.first['totalActivities'] as int,
+      'totalDistance': (result.first['totalDistance'] as num?)?.toDouble() ?? 0.0,
+      'totalDuration': result.first['totalDuration'] as int? ?? 0,
+    };
+  }
+
+  Future<void> deleteActivity(int id) async {
+    final db = await database;
+    await db.delete(
+      'activities',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> deleteAllActivitiesForUser(int userId) async {
+    final db = await database;
+    await db.delete(
+      'activities',
+      where: 'userId = ?',
+      whereArgs: [userId],
     );
   }
 }

@@ -48,7 +48,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
             ),
           ),
 
-          // Top stats overlay (will show during activity)
+          // Top stats overlay during activity (add dynamic refresh later)
           Positioned(
             top: 0,
             left: 0,

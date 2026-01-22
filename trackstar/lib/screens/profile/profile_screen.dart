@@ -29,7 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: AppColors.textDark),
             onPressed: () {
-              // TODO: Navigate to settings
+              // placeholder, navigate to settings later
             },
           ),
         ],
@@ -154,7 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.edit_outlined,
                     title: 'Uredi profil',
                     onTap: () {
-                      // TODO: Navigate to edit profile
+                      // placeholder, add navigation to edit profile
                     },
                   ),
                   _buildDivider(),
@@ -162,7 +162,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.history,
                     title: 'Istorija aktivnosti',
                     onTap: () {
-                      // TODO: Navigate to activity history
+                      // placeholder, add navigation to activity history
                     },
                   ),
                   _buildDivider(),
@@ -170,7 +170,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.star_outline,
                     title: 'Omiljene rute',
                     onTap: () {
-                      // TODO: Navigate to favorite routes
+                      // placeholder, add navigation to favorite routes
                     },
                   ),
                   _buildDivider(),
@@ -178,7 +178,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.notifications_outlined,
                     title: 'Obaveštenja',
                     onTap: () {
-                      // TODO: Navigate to notifications settings
+                      // placeholder, add navigation to notifications settings
                     },
                   ),
                   _buildDivider(),
@@ -186,7 +186,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.help_outline,
                     title: 'Pomoć i podrška',
                     onTap: () {
-                      // TODO: Navigate to help
+                      // placeholder, add navigation to help
                     },
                   ),
                   _buildDivider(),
@@ -281,7 +281,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () {
-              // TODO: Clear user session/data
+              // add clear user session/data later
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (context) => const LoginScreen()),
                 (route) => false,

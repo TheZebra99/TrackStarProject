@@ -39,7 +39,7 @@ class _MainNavigationState extends State<MainNavigation> {
           onTap: (index) {
             // Special handling for the center button
             if (index == 1) {
-              // This is the activity button - you can add special animation later
+              // placeholder
             }
             setState(() {
               _currentIndex = index;

@@ -4,6 +4,7 @@ import 'package:trackstar/models/activity.dart';
 import 'package:trackstar/models/user.dart';
 
 class DatabaseService {
+  // Singleton instance
   static final DatabaseService instance = DatabaseService._init(); // empty constructor
 
   static Database? _database; 

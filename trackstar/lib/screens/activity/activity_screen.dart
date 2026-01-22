@@ -70,10 +70,16 @@ class _ActivityScreenState extends State<ActivityScreen> {
                         maxZoom: 18.0,
                       ),
                       children: [
-                        // Tile layer - OpenStreetMap tiles
+                        // Tile layer - OpenStreetMap tiles are saved as PNG images
                         TileLayer(
                           urlTemplate:
                               'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              /*
+                                Where:
+                                - {z} = zoom level (0-19)
+                                - {x} = tile X coordinate
+                                - {y} = tile Y coordinate
+                              */ 
                           userAgentPackageName: 'com.example.trackstar',
                         ),
 
@@ -398,8 +404,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
         title: const Text('Završi aktivnost?'),
         content: Text(
           'Distanca: ${_distance.toStringAsFixed(2)} km\n'
-          'Trajanje: ${_duration ~/ 60}m ${_duration % 60}s'
-          'Prosečna brzina: ${avgSpeed.toStringAsFixed(1)} km/h',
+          'Trajanje: ${_duration ~/ 60}m ${_duration % 60}s\n'
+          'Prosečna brzina: ${avgSpeed.toStringAsFixed(1)} km/h\n',
         ),
         actions: [
           TextButton(

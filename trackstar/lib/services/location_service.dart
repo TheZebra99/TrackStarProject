@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 
 // LocationService - Manages GPS tracking for activities
@@ -105,28 +106,40 @@ class LocationService {
     return true;
   }
 
-  // Handle position updates from GPS
+  // Handle position updates from GPS, added 3D calculation that includes height changes
   void _onPositionUpdate(Position position) {
     print('Position update: ${position.latitude}, ${position.longitude}');
+    print('Altitude: ${position.altitude.toStringAsFixed(1)}m');
     
     if (_positions.isNotEmpty) {
-      // Calculate distance based on the last position
       final lastPosition = _positions.last;
-      double distance = Geolocator.distanceBetween(
+      
+      // Calculate horizontal distance
+      double horizontalDistance = Geolocator.distanceBetween(
         lastPosition.latitude,
         lastPosition.longitude,
         position.latitude,
         position.longitude,
       );
       
-      // Add to total distance, convert meters to kilometers
-      _totalDistance += distance / 1000.0;
+      // Calculate vertical distance (altitude change)
+      double verticalDistance = (position.altitude - lastPosition.altitude).abs();
       
-      print('Distance from last point: ${distance.toStringAsFixed(1)}m');
-      print('Total distance: ${_totalDistance.toStringAsFixed(2)}km');
-      print('Speed: ${currentSpeed.toStringAsFixed(1)}km/h');
+      // Calculate true 3D distance using Pythagorean theorem
+      double distance3D = sqrt(
+        (horizontalDistance * horizontalDistance) + 
+        (verticalDistance * verticalDistance)
+      );
+      
+      // Add to total distance, convert meters to kilometers
+      _totalDistance += distance3D / 1000.0;
+      
+      print('Horizontal: ${horizontalDistance.toStringAsFixed(1)}m');
+      print('Vertical: ${verticalDistance.toStringAsFixed(1)}m');
+      print('3D Distance: ${distance3D.toStringAsFixed(1)}m');
+      print('Total: ${_totalDistance.toStringAsFixed(2)}km');
     }
-
+    
     _positions.add(position);
   }
 

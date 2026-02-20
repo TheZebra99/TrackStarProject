@@ -3,7 +3,8 @@ import 'screens/auth/login_screen.dart';
 import 'utils/colors.dart';
 import 'utils/app_settings.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const TrackStarApp());
 }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
 import '../../utils/app_settings.dart';
+import '../../services/user_session.dart';
+import '../admin/admin_panel_screen.dart';
 
 class SettingsPanel extends StatefulWidget {
   const SettingsPanel({Key? key}) : super(key: key);
@@ -25,10 +27,10 @@ class _SettingsPanelState extends State<SettingsPanel> {
   @override
   Widget build(BuildContext context) {
     // panel itself must also respond to current dark-mode state
-    final isDark  = _settings.darkMode;
-    final cardBg  = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    final tileBg  = isDark ? const Color(0xFF2A2A2A) : AppColors.backgroundLight;
-    final textPrimary   = isDark ? Colors.white : AppColors.textDark;
+    final isDark = _settings.darkMode;
+    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final tileBg = isDark ? const Color(0xFF2A2A2A) : AppColors.backgroundLight;
+    final textPrimary = isDark ? Colors.white : AppColors.textDark;
     final textSecondary = isDark ? Colors.white60 : AppColors.textGrey;
 
     return DraggableScrollableSheet(
@@ -39,17 +41,16 @@ class _SettingsPanelState extends State<SettingsPanel> {
         return Container(
           decoration: BoxDecoration(
             color: cardBg,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: ListView(
             controller: scrollController,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             children: [
               Center(
                 child: Container(
-                  width: 40, height: 4,
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: textSecondary.withOpacity(0.4),
                     borderRadius: BorderRadius.circular(2),
@@ -82,9 +83,8 @@ class _SettingsPanelState extends State<SettingsPanel> {
                 onChanged: (val) {
                   // update AppSettings which notifies main.dart
                   setState(() => _settings.darkMode = val);
-                  _showSnack(val
-                      ? 'Noćni režim uključen'
-                      : 'Noćni režim isključen');
+                  _showSnack(
+                      val ? 'Noćni režim uključen' : 'Noćni režim isključen');
                 },
               ),
 
@@ -107,9 +107,8 @@ class _SettingsPanelState extends State<SettingsPanel> {
                 textSecondary: textSecondary,
                 onChanged: (val) {
                   setState(() => _settings.largeText = val);
-                  _showSnack(val
-                      ? 'Veći tekst uključen'
-                      : 'Veći tekst isključen');
+                  _showSnack(
+                      val ? 'Veći tekst uključen' : 'Veći tekst isključen');
                 },
               ),
               const SizedBox(height: 8),
@@ -129,6 +128,67 @@ class _SettingsPanelState extends State<SettingsPanel> {
                       : 'Visoki kontrast isključen');
                 },
               ),
+
+              // Admin panel button — only shown to admins
+              if (UserSession.instance.isAdmin) ...[
+                const SizedBox(height: 28),
+                Text('Administracija',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: textSecondary)),
+                const SizedBox(height: 8),
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    Navigator.pop(context); // close the panel first
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const AdminPanelScreen()),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: tileBg,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.admin_panel_settings,
+                              color: Colors.red, size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Admin panel',
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: textPrimary)),
+                              Text('Upravljanje korisnicima',
+                                  style: TextStyle(
+                                      fontSize: 12, color: textSecondary)),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.arrow_forward_ios,
+                            size: 14, color: textSecondary),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         );

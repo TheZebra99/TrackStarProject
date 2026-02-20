@@ -13,6 +13,7 @@ class UserSession {
   String  get displayName  => _currentUser?.name  ?? 'Korisnik';
   String  get email        => _currentUser?.email ?? '';
   int     get userId       => _currentUser?.id    ?? 1; // placeholder
+  bool    get isAdmin      => _currentUser?.isAdmin ?? false;
 
   void setUser(User user) => _currentUser = user;
   void clearUser()        => _currentUser = null;

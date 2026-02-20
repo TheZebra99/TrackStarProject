@@ -6,6 +6,7 @@ import '../../utils/app_settings.dart';
 import '../../services/database_service.dart';
 import '../../services/location_service.dart';
 import '../../models/activity.dart';
+import '../../services/user_session.dart';
 
 class ActivityHistoryScreen extends StatefulWidget {
   const ActivityHistoryScreen({Key? key}) : super(key: key);
@@ -15,7 +16,7 @@ class ActivityHistoryScreen extends StatefulWidget {
 }
 
 class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
-  final int _currentUserId = 1;
+  int get _currentUserId => UserSession.instance.userId; // dynamic user
   List<Activity> _activities = [];
   bool _isLoading = true;
 
@@ -23,9 +24,10 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
   String _filter = 'all'; // 'all', 'walk', 'run', 'cycle'
 
   bool get _isDark => AppSettings.instance.darkMode;
-  Color get _bgColor => _isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
-  Color get _cardBg  => _isDark ? const Color(0xFF1E1E1E) : Colors.white;
-  Color get _textPrimary   => _isDark ? Colors.white : AppColors.textDark;
+  Color get _bgColor =>
+      _isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
+  Color get _cardBg => _isDark ? const Color(0xFF1E1E1E) : Colors.white;
+  Color get _textPrimary => _isDark ? Colors.white : AppColors.textDark;
   Color get _textSecondary => _isDark ? Colors.white60 : AppColors.textGrey;
 
   @override
@@ -89,8 +91,7 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
           // Filter chips
           Container(
             color: _cardBg,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: [
                 _filterChip('all', 'Sve'),
@@ -112,11 +113,9 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
                     : RefreshIndicator(
                         onRefresh: _loadActivities,
                         child: ListView.builder(
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
                           itemCount: _filtered.length,
-                          itemBuilder: (context, i) =>
-                              _buildCard(_filtered[i]),
+                          itemBuilder: (context, i) => _buildCard(_filtered[i]),
                         ),
                       ),
           ),
@@ -130,8 +129,7 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
     return GestureDetector(
       onTap: () => setState(() => _filter = value),
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
           color: selected ? AppColors.primaryOrange : _bgColor,
           borderRadius: BorderRadius.circular(20),
@@ -198,8 +196,7 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
                       ),
                       Text(
                         _formatDate(activity.startTime),
-                        style: TextStyle(
-                            fontSize: 12, color: _textSecondary),
+                        style: TextStyle(fontSize: 12, color: _textSecondary),
                       ),
                     ],
                   ),
@@ -208,9 +205,7 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
                 IconButton(
                   icon: Icon(
                     activity.isFavorite ? Icons.star : Icons.star_border,
-                    color: activity.isFavorite
-                        ? Colors.amber
-                        : _textSecondary,
+                    color: activity.isFavorite ? Colors.amber : _textSecondary,
                   ),
                   onPressed: activity.id != null
                       ? () => _toggleFavorite(activity)
@@ -227,9 +222,7 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
               children: [
                 _stat(activity.formattedDistance, 'Distanca'),
                 _stat(activity.formattedDuration, 'Vreme'),
-                _stat(
-                    '${activity.avgSpeed.toStringAsFixed(1)} km/h',
-                    'Brzina'),
+                _stat('${activity.avgSpeed.toStringAsFixed(1)} km/h', 'Brzina'),
               ],
             ),
           ),
@@ -250,8 +243,7 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
                 color: _textPrimary)),
-        Text(label,
-            style: TextStyle(fontSize: 11, color: _textSecondary)),
+        Text(label, style: TextStyle(fontSize: 11, color: _textSecondary)),
       ],
     );
   }
@@ -274,8 +266,7 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
       );
     }
 
-    final decoded =
-        LocationService.decodePolyline(activity.routePolyline!);
+    final decoded = LocationService.decodePolyline(activity.routePolyline!);
     final points = decoded.map((p) => LatLng(p[0], p[1])).toList();
 
     double minLat = points.first.latitude, maxLat = points.first.latitude;
@@ -287,8 +278,8 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
       if (p.longitude > maxLng) maxLng = p.longitude;
     }
     final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-    final spread = [maxLat - minLat, maxLng - minLng]
-        .reduce((a, b) => a > b ? a : b);
+    final spread =
+        [maxLat - minLat, maxLng - minLng].reduce((a, b) => a > b ? a : b);
     final zoom = spread < 0.002
         ? 17.0
         : spread < 0.01
@@ -360,17 +351,15 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.history,
-              size: 72, color: _textSecondary.withOpacity(0.3)),
+          Icon(Icons.history, size: 72, color: _textSecondary.withOpacity(0.3)),
           const SizedBox(height: 16),
           Text('Nema aktivnosti',
               style: TextStyle(fontSize: 18, color: _textSecondary)),
           const SizedBox(height: 8),
           Text(
             'Aktivnosti koje zabeležite pojaviće se ovde.',
-            style: TextStyle(
-                fontSize: 13,
-                color: _textSecondary.withOpacity(0.7)),
+            style:
+                TextStyle(fontSize: 13, color: _textSecondary.withOpacity(0.7)),
           ),
         ],
       ),
@@ -379,10 +368,14 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
 
   Color _typeColor(String type) {
     switch (type) {
-      case 'walk':  return Colors.green;
-      case 'run':   return AppColors.primaryOrange;
-      case 'cycle': return Colors.blue;
-      default:      return AppColors.primaryOrange;
+      case 'walk':
+        return Colors.green;
+      case 'run':
+        return AppColors.primaryOrange;
+      case 'cycle':
+        return Colors.blue;
+      default:
+        return AppColors.primaryOrange;
     }
   }
 

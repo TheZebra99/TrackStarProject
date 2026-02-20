@@ -19,7 +19,7 @@ class DatabaseService {
       join(await getDatabasesPath(), 'main_database.db'),
       onCreate: (db, version) async {
         await db.execute(
-          'CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, email TEXT UNIQUE, password TEXT)',
+          'CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, email TEXT UNIQUE, password TEXT, isAdmin INTEGER NOT NULL DEFAULT 0)',
         );
         await db.execute('''
           CREATE TABLE activities(
@@ -36,6 +36,13 @@ class DatabaseService {
             FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
           )
         ''');
+        // Default admin
+        await db.insert('users', {
+          'name': 'Admin',
+          'email': 'admin123@gmail.com',
+          'password': 'admin123',
+          'isAdmin': 1,
+        });
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -62,8 +69,27 @@ class DatabaseService {
             );
           } catch (_) {}
         }
+        if (oldVersion < 4) {
+          // Add isAdmin column to existing installations
+          try {
+            await db.execute(
+              'ALTER TABLE users ADD COLUMN isAdmin INTEGER NOT NULL DEFAULT 0',
+            );
+          } catch (_) {}
+          // Seed default admin if it doesn't exist yet
+          final existing = await db.query('users',
+              where: 'email = ?', whereArgs: ['admin123@gmail.com'], limit: 1);
+          if (existing.isEmpty) {
+            await db.insert('users', {
+              'name': 'Admin',
+              'email': 'admin123@gmail.com',
+              'password': 'admin123',
+              'isAdmin': 1,
+            });
+          }
+        }
       },
-      version: 3,
+      version: 4,  // bumped from 3
     );
   }
 
@@ -89,8 +115,30 @@ class DatabaseService {
               name: m['name'] as String,
               email: m['email'] as String,
               password: m['password'] as String,
+              isAdmin: (m['isAdmin'] as int? ?? 0) == 1,
             ))
         .toList();
+  }
+
+    // Returns all users, used by the admin panel
+  Future<List<User>> getAllUsers() async {
+    final db = await database;
+    final maps = await db.query('users', orderBy: 'id ASC');
+    return maps.map((m) => User(
+          id: m['id'] as int?,
+          name: m['name'] as String,
+          email: m['email'] as String,
+          password: m['password'] as String,
+          isAdmin: (m['isAdmin'] as int? ?? 0) == 1,
+        )).toList();
+  }
+
+  // Returns how many users currently have isAdmin = 1
+  Future<int> getAdminCount() async {
+    final db = await database;
+    final result = await db
+        .rawQuery('SELECT COUNT(*) as count FROM users WHERE isAdmin = 1');
+    return (result.first['count'] as int? ?? 0);
   }
 
   Future<void> updateUser(User user) async {
@@ -117,6 +165,7 @@ class DatabaseService {
       name: m['name'] as String,
       email: m['email'] as String,
       password: m['password'] as String,
+      isAdmin: (m['isAdmin'] as int? ?? 0) == 1,
     );
   }
 
@@ -194,5 +243,15 @@ class DatabaseService {
   Future<void> deleteAllActivitiesForUser(int userId) async {
     final db = await database;
     await db.delete('activities', where: 'userId = ?', whereArgs: [userId]);
+  }
+
+  Future<void> setAdminStatus(int userId, bool isAdmin) async {
+    final db = await database;
+    await db.update(
+      'users',
+      {'isAdmin': isAdmin ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
   }
 }

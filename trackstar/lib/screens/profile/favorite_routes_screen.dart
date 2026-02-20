@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:trackstar/services/user_session.dart';
 import '../../utils/colors.dart';
 import '../../utils/app_settings.dart';
 import '../../services/database_service.dart';
@@ -15,15 +16,16 @@ class FavoriteRoutesScreen extends StatefulWidget {
 }
 
 class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
-  final int _currentUserId = 1;
+  int get _currentUserId => UserSession.instance.userId;
   List<Activity> _favorites = [];
   bool _isLoading = true;
 
   // Night mode helpers
   bool get _isDark => AppSettings.instance.darkMode;
-  Color get _bgColor => _isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
-  Color get _cardBg  => _isDark ? const Color(0xFF1E1E1E) : Colors.white;
-  Color get _textPrimary   => _isDark ? Colors.white : AppColors.textDark;
+  Color get _bgColor =>
+      _isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
+  Color get _cardBg => _isDark ? const Color(0xFF1E1E1E) : Colors.white;
+  Color get _textPrimary => _isDark ? Colors.white : AppColors.textDark;
   Color get _textSecondary => _isDark ? Colors.white60 : AppColors.textGrey;
 
   @override
@@ -35,8 +37,8 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
-      final favs = await DatabaseService.instance
-          .getFavoriteActivities(_currentUserId);
+      final favs =
+          await DatabaseService.instance.getFavoriteActivities(_currentUserId);
       setState(() {
         _favorites = favs;
         _isLoading = false;
@@ -67,9 +69,7 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
         title: Text(
           'Omiljene rute',
           style: TextStyle(
-              color: _textPrimary,
-              fontSize: 20,
-              fontWeight: FontWeight.bold),
+              color: _textPrimary, fontSize: 20, fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: _textPrimary),
@@ -130,8 +130,8 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
                               fontWeight: FontWeight.bold,
                               color: _textPrimary)),
                       Text(_formatDate(activity.startTime),
-                          style: TextStyle(
-                              fontSize: 12, color: _textSecondary)),
+                          style:
+                              TextStyle(fontSize: 12, color: _textSecondary)),
                     ],
                   ),
                 ),
@@ -152,8 +152,7 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
               children: [
                 _stat(activity.formattedDistance, 'Distanca'),
                 _stat(activity.formattedDuration, 'Vreme'),
-                _stat('${activity.avgSpeed.toStringAsFixed(1)} km/h',
-                    'Brzina'),
+                _stat('${activity.avgSpeed.toStringAsFixed(1)} km/h', 'Brzina'),
               ],
             ),
           ),
@@ -173,8 +172,7 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
                 color: _textPrimary)),
-        Text(label,
-            style: TextStyle(fontSize: 11, color: _textSecondary)),
+        Text(label, style: TextStyle(fontSize: 11, color: _textSecondary)),
       ],
     );
   }
@@ -195,8 +193,7 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
       );
     }
 
-    final decoded =
-        LocationService.decodePolyline(activity.routePolyline!);
+    final decoded = LocationService.decodePolyline(activity.routePolyline!);
     final points = decoded.map((p) => LatLng(p[0], p[1])).toList();
 
     double minLat = points.first.latitude, maxLat = points.first.latitude;
@@ -207,10 +204,9 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
       if (p.longitude < minLng) minLng = p.longitude;
       if (p.longitude > maxLng) maxLng = p.longitude;
     }
-    final center =
-        LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-    final spread = [maxLat - minLat, maxLng - minLng]
-        .reduce((a, b) => a > b ? a : b);
+    final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+    final spread =
+        [maxLat - minLat, maxLng - minLng].reduce((a, b) => a > b ? a : b);
     final zoom = spread < 0.002
         ? 17.0
         : spread < 0.01
@@ -224,8 +220,7 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: _typeColor(activity.type).withOpacity(0.3),
-            width: 1.5),
+            color: _typeColor(activity.type).withOpacity(0.3), width: 1.5),
       ),
       child: IgnorePointer(
         child: FlutterMap(
@@ -235,8 +230,7 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
               interactiveFlags: InteractiveFlag.none),
           children: [
             TileLayer(
-              urlTemplate:
-                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.example.trackstar',
             ),
             PolylineLayer(polylines: [
@@ -268,8 +262,7 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
               'Zvezdicu možete dodati na kartice aktivnosti u Feedu ili Istoriji.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontSize: 13,
-                  color: _textSecondary.withOpacity(0.7)),
+                  fontSize: 13, color: _textSecondary.withOpacity(0.7)),
             ),
           ),
         ],
@@ -279,10 +272,14 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
 
   Color _typeColor(String type) {
     switch (type) {
-      case 'walk':  return Colors.green;
-      case 'run':   return AppColors.primaryOrange;
-      case 'cycle': return Colors.blue;
-      default:      return AppColors.primaryOrange;
+      case 'walk':
+        return Colors.green;
+      case 'run':
+        return AppColors.primaryOrange;
+      case 'cycle':
+        return Colors.blue;
+      default:
+        return AppColors.primaryOrange;
     }
   }
 

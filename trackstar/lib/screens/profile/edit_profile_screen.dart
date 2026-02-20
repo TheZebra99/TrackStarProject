@@ -19,14 +19,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _emailController;
   final _passwordController = TextEditingController();
-  final _confirmController  = TextEditingController();
-  bool _isSaving     = false;
+  final _confirmController = TextEditingController();
+  bool _isSaving = false;
   bool _showPassword = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController  = TextEditingController(text: UserSession.instance.displayName);
+    _nameController =
+        TextEditingController(text: UserSession.instance.displayName);
     _emailController = TextEditingController(text: UserSession.instance.email);
   }
 
@@ -43,8 +44,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
 
-    final session  = UserSession.instance;
-    final newName  = _nameController.text.trim();
+    final session = UserSession.instance;
+    final newName = _nameController.text.trim();
     final newEmail = _emailController.text.trim();
 
     if (newEmail != session.email) {
@@ -52,10 +53,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (exists) {
         setState(() => _isSaving = false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Email je već u upotrebi.'),
-                backgroundColor: Colors.red));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Email je već u upotrebi.'),
+              backgroundColor: Colors.red));
         }
         return;
       }
@@ -70,6 +70,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       name: newName,
       email: newEmail,
       password: newPassword,
+      isAdmin: session.isAdmin,
     );
 
     await DatabaseService.instance.updateUser(updatedUser);
@@ -77,16 +78,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     setState(() => _isSaving = false);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Profil uspešno ažuriran'),
-            backgroundColor: Colors.green));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Profil uspešno ažuriran'),
+          backgroundColor: Colors.green));
       Navigator.pop(context, true);
     }
   }
 
-  // Delete account
   Future<void> _deleteAccount() async {
+    // Admins cannot delete their account if they are the only admin left.
+    if (UserSession.instance.isAdmin) {
+      final adminCount = await DatabaseService.instance.getAdminCount();
+      if (adminCount <= 1) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Ne možete obrisati nalog jer ste jedini admin. '
+                  'Dodelite admin ulogu drugom korisniku pre brisanja.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -99,8 +116,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: const Text('Otkaži')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Obriši',
-                style: TextStyle(color: Colors.red)),
+            child: const Text('Obriši', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -118,6 +134,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     await DatabaseService.instance.deleteUser(userId);
 
     UserSession.instance.clearUser();
+    AppSettings.instance.resetToDefaults();
 
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
@@ -129,8 +146,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark     = AppSettings.instance.darkMode;
-    final cardBg     = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final isDark = AppSettings.instance.darkMode;
+    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final labelColor = isDark ? Colors.white70 : AppColors.textGrey;
 
     return Scaffold(
@@ -154,7 +171,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             onPressed: _isSaving ? null : _save,
             child: _isSaving
                 ? const SizedBox(
-                    width: 20, height: 20,
+                    width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Text('Sačuvaj',
                     style: TextStyle(
@@ -178,7 +196,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 controller: _nameController,
                 label: 'Ime i prezime',
                 icon: Icons.person_outline,
-                cardBg: cardBg, isDark: isDark,
+                cardBg: cardBg,
+                isDark: isDark,
                 validator: (v) =>
                     (v == null || v.isEmpty) ? 'Unesite ime' : null,
               ),
@@ -188,7 +207,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 label: 'Email',
                 icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
-                cardBg: cardBg, isDark: isDark,
+                cardBg: cardBg,
+                isDark: isDark,
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Unesite email';
                   if (!v.contains('@')) return 'Unesite validan email';
@@ -209,7 +229,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 label: 'Nova lozinka',
                 icon: Icons.lock_outline,
                 obscure: !_showPassword,
-                cardBg: cardBg, isDark: isDark,
+                cardBg: cardBg,
+                isDark: isDark,
                 suffixIcon: IconButton(
                   icon: Icon(_showPassword
                       ? Icons.visibility_outlined
@@ -230,7 +251,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 label: 'Potvrdite lozinku',
                 icon: Icons.lock_outline,
                 obscure: !_showPassword,
-                cardBg: cardBg, isDark: isDark,
+                cardBg: cardBg,
+                isDark: isDark,
                 validator: (v) {
                   if (_passwordController.text.isNotEmpty &&
                       v != _passwordController.text) {
@@ -242,7 +264,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
               const SizedBox(height: 40),
 
-              // Delete account
+              // Delete account button
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -291,11 +313,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     bool obscure = false,
     Widget? suffixIcon,
   }) {
-    final textColor   = isDark ? Colors.white : AppColors.textDark;
-    final labelColor  = isDark ? Colors.white60 : AppColors.textGrey;
-    final borderColor = isDark
-        ? Colors.white24
-        : AppColors.textGrey.withOpacity(0.4);
+    final textColor = isDark ? Colors.white : AppColors.textDark;
+    final labelColor = isDark ? Colors.white60 : AppColors.textGrey;
+    final borderColor =
+        isDark ? Colors.white24 : AppColors.textGrey.withOpacity(0.4);
 
     return TextFormField(
       controller: controller,
@@ -324,8 +345,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             borderSide: const BorderSide(color: Colors.red)),
         focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide:
-                const BorderSide(color: Colors.red, width: 2)),
+            borderSide: const BorderSide(color: Colors.red, width: 2)),
       ),
     );
   }

@@ -57,8 +57,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
   Future<Set<String>> _getLockedBefore() async {
     final stats = await DatabaseService.instance
         .getUserStats(UserSession.instance.userId);
-    final acts      = stats['totalActivities']   as int;
-    final dist      = stats['totalDistance']     as double;
+    final acts = stats['totalActivities'] as int;
+    final dist = stats['totalDistance'] as double;
     final maxSingle = stats['maxSingleDistance'] as double;
     return allAchievements
         .where((a) => !a.isUnlocked(acts, dist, maxSingle))
@@ -89,8 +89,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
             context,
             MaterialPageRoute(
               builder: (_) => AchievementsScreen(
-                totalActivities:   stats['totalActivities']   as int,
-                totalDistance:     stats['totalDistance']     as double,
+                totalActivities: stats['totalActivities'] as int,
+                totalDistance: stats['totalDistance'] as double,
                 maxSingleDistance: stats['maxSingleDistance'] as double,
               ),
             ),
@@ -420,8 +420,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
       // find newly unlocked achievements and notify
       final statsAfter = await DatabaseService.instance
           .getUserStats(UserSession.instance.userId);
-      final actsAfter      = statsAfter['totalActivities']   as int;
-      final distAfter      = statsAfter['totalDistance']     as double;
+      final actsAfter = statsAfter['totalActivities'] as int;
+      final distAfter = statsAfter['totalDistance'] as double;
       final maxSingleAfter = statsAfter['maxSingleDistance'] as double;
 
       final newlyUnlocked = allAchievements

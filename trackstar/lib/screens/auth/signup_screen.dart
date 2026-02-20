@@ -59,11 +59,10 @@ class _SignupScreenState extends State<SignupScreen> {
           email: email,
           password: _passwordController.text);
       final id = await _db.insertUser(newUser);
-      UserSession.instance.setUser(User(
-          id: id,
-          name: newUser.name,
-          email: email,
-          password: newUser.password));
+      final createdUser = User(
+          id: id, name: newUser.name, email: email, password: newUser.password);
+      UserSession.instance.setUser(createdUser);
+      await AppSettings.instance.loadForUser(id);
       setState(() => _isLoading = false);
       if (mounted) _goToMain();
     } catch (e) {
@@ -124,6 +123,7 @@ class _SignupScreenState extends State<SignupScreen> {
       existing = User(id: id, name: name, email: email, password: '');
     }
     UserSession.instance.setUser(existing!);
+    await AppSettings.instance.loadForUser(existing!.id!);
     if (mounted) _goToMain();
   }
 

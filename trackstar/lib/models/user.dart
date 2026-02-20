@@ -3,29 +3,28 @@ class User {
   final String name;
   final String email;
   final String password;
-  //final int age;
-  //final int weight;
+  final bool isAdmin;
 
   const User({
     required this.id,
     required this.name,
     required this.email,
     required this.password,
-    //required this.age,
+    this.isAdmin = false,
   });
 
-  // Convert a User into a Map
   Map<String, Object?> toMap() {
     return {
-      'id': id, 
-      'name': name, 
-      'email': email, 
-      'password' : password,
+      'id': id,
+      'name': name,
+      'email': email,
+      'password': password,
+      'isAdmin': isAdmin ? 1 : 0,
     };
   }
 
   @override
   String toString() {
-    return 'User{id: $id, name: $name, email: $email, password: $password}';
+    return 'User{id: $id, name: $name, email: $email, isAdmin: $isAdmin}';
   }
 }

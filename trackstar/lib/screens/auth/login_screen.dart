@@ -45,6 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     UserSession.instance.setUser(user);
+    await AppSettings.instance.loadForUser(user.id!);
     setState(() => _isLoading = false);
     if (mounted) _goToMain();
   }
@@ -102,6 +103,8 @@ class _LoginScreenState extends State<LoginScreen> {
       user = User(id: id, name: name, email: email, password: '');
     }
     UserSession.instance.setUser(user!);
+    await AppSettings.instance
+        .loadForUser(user!.id!); // persistent changes after logging out
     if (mounted) _goToMain();
   }
 

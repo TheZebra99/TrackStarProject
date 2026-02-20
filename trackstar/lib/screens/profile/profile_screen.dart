@@ -533,6 +533,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(
             onPressed: () {
               UserSession.instance.clearUser();
+              AppSettings.instance.resetToDefaults(); // reset night mode and accesibility settings
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginScreen()),
                 (route) => false,

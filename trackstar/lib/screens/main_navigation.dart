@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/colors.dart';
+import '../utils/app_settings.dart';
 import 'feed/feed_screen.dart';
 import 'activity/activity_screen.dart';
 import 'profile/profile_screen.dart';
@@ -14,21 +15,40 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const FeedScreen(),
-    const ActivityScreen(),
-    const ProfileScreen(),
+  final List<Widget> _screens = const [
+    FeedScreen(),
+    ActivityScreen(),
+    ProfileScreen(),
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // Rebuild bottom bar when theme changes
+    AppSettings.instance.addListener(_onSettingsChanged);
+  }
+
+  @override
+  void dispose() {
+    AppSettings.instance.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
+
+  void _onSettingsChanged() => setState(() {});
+
+  @override
   Widget build(BuildContext context) {
+    final isDark   = AppSettings.instance.darkMode;
+    final navBg    = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final unselected = isDark ? Colors.white38 : AppColors.textGrey;
+
     return Scaffold(
       body: _screens[_currentIndex],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),
@@ -36,19 +56,11 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) {
-            // Special handling for the center button
-            if (index == 1) {
-              // placeholder
-            }
-            setState(() {
-              _currentIndex = index;
-            });
-          },
+          onTap: (index) => setState(() => _currentIndex = index),
           type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
+          backgroundColor: navBg,
           selectedItemColor: AppColors.primaryOrange,
-          unselectedItemColor: AppColors.textGrey,
+          unselectedItemColor: unselected,
           selectedFontSize: 12,
           unselectedFontSize: 12,
           elevation: 0,
@@ -61,22 +73,19 @@ class _MainNavigationState extends State<MainNavigation> {
             BottomNavigationBarItem(
               icon: Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppColors.primaryOrange,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.directions_run,
-                  color: Colors.white,
-                  size: 28,
-                ),
+                child: const Icon(Icons.directions_run,
+                    color: Colors.white, size: 28),
               ),
               label: '',
             ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
               activeIcon: Icon(Icons.person),
-              label: 'Profile',
+              label: 'Profil',
             ),
           ],
         ),

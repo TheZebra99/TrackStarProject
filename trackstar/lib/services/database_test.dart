@@ -122,7 +122,7 @@ void main() async {
   print('Remaining activities: ${remainingActivities.length}');
 
   print('\n10. Deleting user...');
-  await dbService.deleteUser(guy.id);
+  //await dbService.deleteUser(guy.id);
   print('User deleted');
 
   // Print the list of users (should be empty or only original users)

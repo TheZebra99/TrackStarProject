@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import '../../utils/colors.dart';
 import 'package:latlong2/latlong.dart';
+import '../../utils/colors.dart';
+import '../../utils/app_settings.dart';
 import '../../services/database_service.dart';
 import '../../services/location_service.dart';
+import '../../services/user_session.dart';
 import '../../models/activity.dart';
 import '../profile/activity_history_screen.dart';
 
@@ -15,39 +17,42 @@ class FeedScreen extends StatefulWidget {
 }
 
 class _FeedScreenState extends State<FeedScreen> {
-  // State variables
   List<Activity> _activities = [];
   bool _isLoading = true;
   int _totalActivities = 0;
   double _totalDistance = 0.0;
-  final int _currentUserId = 1; // TODO: Get from actual logged-in user
 
   @override
   void initState() {
     super.initState();
     _loadActivities();
+    AppSettings.instance.addListener(_onSettingsChanged);
   }
+
+  @override
+  void dispose() {
+    AppSettings.instance.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
+
+  void _onSettingsChanged() => setState(() {});
 
   Future<void> _loadActivities() async {
     setState(() => _isLoading = true);
-
     try {
-      // Get this week's activities
-      final activities = await DatabaseService.instance
-          .getActivitiesThisWeek(_currentUserId);
-
-      // Get total stats
-      final stats = await DatabaseService.instance
-          .getUserStats(_currentUserId);
-
+      // Use session userId — fixes multi-user feed contamination
+      final userId = UserSession.instance.userId;
+      final activities =
+          await DatabaseService.instance.getActivitiesThisWeek(userId);
+      final stats = await DatabaseService.instance.getUserStats(userId);
       setState(() {
-        _activities = activities;
+        _activities      = activities;
         _totalActivities = stats['totalActivities'] as int;
-        _totalDistance = stats['totalDistance'] as double;
+        _totalDistance   = stats['totalDistance']   as double;
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading activities: $e');
+      debugPrint('Error loading activities: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -65,32 +70,32 @@ class _FeedScreenState extends State<FeedScreen> {
   void _openActivityHistory() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-          builder: (_) => const ActivityHistoryScreen()),
-    ).then((_) => _loadActivities()); // refresh feed on return
+      MaterialPageRoute(builder: (_) => const ActivityHistoryScreen()),
+    ).then((_) => _loadActivities());
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark        = AppSettings.instance.darkMode;
+    final bgColor       = isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
+    final cardBg        = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textPrimary   = isDark ? Colors.white : AppColors.textDark;
+    final textSecondary = isDark ? Colors.white60 : AppColors.textGrey;
+
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cardBg,
         elevation: 0,
-        title: const Text(
-          'TrackStar',
-          style: TextStyle(
-              color: AppColors.textDark,
-              fontSize: 24,
-              fontWeight: FontWeight.bold),
-        ),
+        title: Text('TrackStar',
+            style: TextStyle(
+                color: textPrimary,
+                fontSize: 24,
+                fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined,
-                color: AppColors.textDark),
-            onPressed: () {
-              // TODO: Navigate to notifications
-            },
+            icon: Icon(Icons.notifications_outlined, color: textPrimary),
+            onPressed: () {},
           ),
         ],
       ),
@@ -101,6 +106,7 @@ class _FeedScreenState extends State<FeedScreen> {
             : ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
+                  // Hero stats card
                   Container(
                     margin: const EdgeInsets.all(16),
                     padding: const EdgeInsets.all(20),
@@ -125,19 +131,17 @@ class _FeedScreenState extends State<FeedScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Dobro došli nazad! 👋',
-                          style: TextStyle(
+                        Text(
+                          'Dobro došli, ${UserSession.instance.displayName}! 👋',
+                          style: const TextStyle(
                               color: Colors.white,
                               fontSize: 20,
                               fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'Spremni za novu avanturu?',
-                          style:
-                              TextStyle(color: Colors.white, fontSize: 14),
-                        ),
+                        const Text('Spremni za novu avanturu?',
+                            style: TextStyle(
+                                color: Colors.white, fontSize: 14)),
                         const SizedBox(height: 16),
                         Row(
                           children: [
@@ -153,37 +157,34 @@ class _FeedScreenState extends State<FeedScreen> {
                     ),
                   ),
 
+                  // Section header
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Ove nedelje',
-                          style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textDark),
-                        ),
+                        Text('Ove nedelje',
+                            style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: textPrimary)),
                         if (_activities.isNotEmpty)
                           TextButton(
-                            // vidi sve navigates to activity history
                             onPressed: _openActivityHistory,
-                            child: const Text(
-                              'Vidi sve',
-                              style:
-                                  TextStyle(color: AppColors.primaryOrange),
-                            ),
+                            child: const Text('Vidi sve',
+                                style: TextStyle(
+                                    color: AppColors.primaryOrange)),
                           ),
                       ],
                     ),
                   ),
 
                   if (_activities.isEmpty)
-                    _buildEmptyState()
+                    _buildEmptyState(textSecondary)
                   else
                     ..._activities
-                        .map((a) => _buildActivityCard(a))
+                        .map((a) => _buildActivityCard(a, cardBg,
+                            textPrimary, textSecondary))
                         .toList(),
                 ],
               ),
@@ -191,12 +192,12 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-  // Build activity card
-  Widget _buildActivityCard(Activity activity) {
+  Widget _buildActivityCard(Activity activity, Color cardBg,
+      Color textPrimary, Color textSecondary) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -216,8 +217,8 @@ class _FeedScreenState extends State<FeedScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color:
-                        _getActivityColor(activity.type).withOpacity(0.1),
+                    color: _getActivityColor(activity.type)
+                        .withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(activity.iconEmoji,
@@ -228,57 +229,50 @@ class _FeedScreenState extends State<FeedScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        activity.typeName,
-                        style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textDark),
-                      ),
+                      Text(activity.typeName,
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: textPrimary)),
                       const SizedBox(height: 4),
-                      Text(
-                        _formatDate(activity.startTime),
-                        style: TextStyle(
-                            fontSize: 12, color: AppColors.textGrey),
-                      ),
+                      Text(_formatDate(activity.startTime),
+                          style: TextStyle(
+                              fontSize: 12, color: textSecondary)),
                     ],
                   ),
                 ),
-                // Star button, tap to add/remove from Omiljene rute
                 IconButton(
                   icon: Icon(
-                    activity.isFavorite ? Icons.star : Icons.star_border,
+                    activity.isFavorite
+                        ? Icons.star
+                        : Icons.star_border,
                     color: activity.isFavorite
                         ? Colors.amber
-                        : AppColors.textGrey,
+                        : textSecondary,
                   ),
-                  tooltip: activity.isFavorite
-                      ? 'Ukloni iz omiljenih'
-                      : 'Dodaj u omiljene rute',
                   onPressed: () => _toggleFavorite(activity),
                 ),
               ],
             ),
           ),
-
-          // Stats
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatColumn(activity.formattedDistance, 'Distanca',
-                    Icons.straighten_outlined),
-                _buildStatColumn(activity.formattedDuration, 'Vreme',
-                    Icons.timer_outlined),
-                _buildStatColumn(
+                _buildStatCol(activity.formattedDistance, 'Distanca',
+                    Icons.straighten_outlined, textPrimary, textSecondary),
+                _buildStatCol(activity.formattedDuration, 'Vreme',
+                    Icons.timer_outlined, textPrimary, textSecondary),
+                _buildStatCol(
                     '${activity.avgSpeed.toStringAsFixed(1)} km/h',
                     'Brzina',
-                    Icons.speed_outlined),
+                    Icons.speed_outlined,
+                    textPrimary,
+                    textSecondary),
               ],
             ),
           ),
-
           const SizedBox(height: 16),
           _buildRouteMap(activity),
           const SizedBox(height: 16),
@@ -287,8 +281,23 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-    Widget _buildRouteMap(Activity activity) {
-    // Decode the polyline into LatLng points
+  Widget _buildStatCol(String value, String label, IconData icon,
+      Color primary, Color secondary) {
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: secondary),
+        const SizedBox(height: 4),
+        Text(value,
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: primary)),
+        Text(label, style: TextStyle(fontSize: 12, color: secondary)),
+      ],
+    );
+  }
+
+  Widget _buildRouteMap(Activity activity) {
     final List<LatLng> routePoints;
     if (activity.routePolyline != null &&
         activity.routePolyline!.isNotEmpty) {
@@ -300,7 +309,6 @@ class _FeedScreenState extends State<FeedScreen> {
     }
 
     if (routePoints.isEmpty) {
-      // No route data — show placeholder
       return Container(
         height: 120,
         margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -308,9 +316,8 @@ class _FeedScreenState extends State<FeedScreen> {
           color: _getActivityColor(activity.type).withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: _getActivityColor(activity.type).withOpacity(0.3),
-            width: 2,
-          ),
+              color: _getActivityColor(activity.type).withOpacity(0.3),
+              width: 2),
         ),
         child: Center(
           child: Column(
@@ -318,57 +325,44 @@ class _FeedScreenState extends State<FeedScreen> {
             children: [
               Icon(Icons.map_outlined,
                   size: 40,
-                  color:
-                      _getActivityColor(activity.type).withOpacity(0.5)),
+                  color: _getActivityColor(activity.type).withOpacity(0.5)),
               const SizedBox(height: 8),
-              Text(
-                'Nema podataka o ruti',
-                style: TextStyle(
-                  color:
-                      _getActivityColor(activity.type).withOpacity(0.7),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Text('Nema podataka o ruti',
+                  style: TextStyle(
+                    color: _getActivityColor(activity.type)
+                        .withOpacity(0.7),
+                    fontWeight: FontWeight.w600,
+                  )),
             ],
           ),
         ),
       );
     }
 
-    // Calculate bounds to fit the entire route
     double minLat = routePoints.first.latitude;
     double maxLat = routePoints.first.latitude;
     double minLng = routePoints.first.longitude;
     double maxLng = routePoints.first.longitude;
-
-    for (final point in routePoints) {
-      if (point.latitude < minLat) minLat = point.latitude;
-      if (point.latitude > maxLat) maxLat = point.latitude;
-      if (point.longitude < minLng) minLng = point.longitude;
-      if (point.longitude > maxLng) maxLng = point.longitude;
+    for (final p in routePoints) {
+      if (p.latitude  < minLat) minLat = p.latitude;
+      if (p.latitude  > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
     }
-
-    final center = LatLng(
-      (minLat + maxLat) / 2,
-      (minLng + maxLng) / 2,
-    );
-
-    // Rough zoom calculation based on route spread
-    final latSpread = maxLat - minLat;
-    final lngSpread = maxLng - minLng;
-    final spread = latSpread > lngSpread ? latSpread : lngSpread;
-    double zoom;
-    if (spread < 0.002) {
-      zoom = 17.0;
-    } else if (spread < 0.01) {
-      zoom = 15.0;
-    } else if (spread < 0.05) {
-      zoom = 13.0;
-    } else if (spread < 0.2) {
-      zoom = 11.0;
-    } else {
-      zoom = 9.0;
-    }
+    final center =
+        LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+    final spread = (maxLat - minLat) > (maxLng - minLng)
+        ? maxLat - minLat
+        : maxLng - minLng;
+    final zoom = spread < 0.002
+        ? 17.0
+        : spread < 0.01
+            ? 15.0
+            : spread < 0.05
+                ? 13.0
+                : spread < 0.2
+                    ? 11.0
+                    : 9.0;
 
     return Container(
       height: 160,
@@ -377,157 +371,105 @@ class _FeedScreenState extends State<FeedScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _getActivityColor(activity.type).withOpacity(0.3),
-          width: 2,
-        ),
+            color: _getActivityColor(activity.type).withOpacity(0.3),
+            width: 2),
       ),
       child: IgnorePointer(
-        // Make the mini-map non-interactive
         child: FlutterMap(
           options: MapOptions(
-            center: center,
-            zoom: zoom,
-            interactiveFlags: InteractiveFlag.none,
-          ),
+              center: center,
+              zoom: zoom,
+              interactiveFlags: InteractiveFlag.none),
           children: [
             TileLayer(
               urlTemplate:
                   'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.example.trackstar',
             ),
-            PolylineLayer(
-              polylines: [
-                Polyline(
-                  points: routePoints,
-                  strokeWidth: 4.0,
-                  color: _getActivityColor(activity.type),
-                ),
-              ],
-            ),
-            // Start marker
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: routePoints.first,
-                  width: 24,
-                  height: 24,
-                  child: Container(
-                    decoration: BoxDecoration(
+            PolylineLayer(polylines: [
+              Polyline(
+                points: routePoints,
+                strokeWidth: 4.0,
+                color: _getActivityColor(activity.type),
+              ),
+            ]),
+            MarkerLayer(markers: [
+              Marker(
+                point: routePoints.first,
+                width: 24, height: 24,
+                child: Container(
+                  decoration: BoxDecoration(
                       color: Colors.green,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: const Icon(Icons.play_arrow,
-                        color: Colors.white, size: 14),
-                  ),
+                      border: Border.all(color: Colors.white, width: 2)),
+                  child: const Icon(Icons.play_arrow,
+                      color: Colors.white, size: 14),
                 ),
-                Marker(
-                  point: routePoints.last,
-                  width: 24,
-                  height: 24,
-                  child: Container(
-                    decoration: BoxDecoration(
+              ),
+              Marker(
+                point: routePoints.last,
+                width: 24, height: 24,
+                child: Container(
+                  decoration: BoxDecoration(
                       color: Colors.red,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: const Icon(Icons.stop,
-                        color: Colors.white, size: 14),
-                  ),
+                      border: Border.all(color: Colors.white, width: 2)),
+                  child: const Icon(Icons.stop,
+                      color: Colors.white, size: 14),
                 ),
-              ],
-            ),
+              ),
+            ]),
           ],
         ),
       ),
     );
   }
 
-  // Build stat column
-  Widget _buildStatColumn(String value, String label, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, size: 20, color: AppColors.textGrey),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textDark,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: AppColors.textGrey,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Get activity color
   Color _getActivityColor(String type) {
     switch (type) {
-      case 'walk':
-        return Colors.green;
-      case 'run':
-        return AppColors.primaryOrange;
-      case 'cycle':
-        return Colors.blue;
-      default:
-        return AppColors.primaryOrange;
+      case 'walk':  return Colors.green;
+      case 'run':   return AppColors.primaryOrange;
+      case 'cycle': return Colors.blue;
+      default:      return AppColors.primaryOrange;
     }
   }
 
-  // Format date
   String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays == 0) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inDays == 0) {
       return 'Danas u ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    } else if (difference.inDays == 1) {
+    } else if (diff.inDays == 1) {
       return 'Juče u ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    } else if (difference.inDays < 7) {
-      final weekdays = ['Ponedeljak', 'Utorak', 'Sreda', 'Četvrtak', 'Petak', 'Subota', 'Nedelja'];
-      return weekdays[date.weekday - 1];
-    } else {
-      return '${date.day}.${date.month}.${date.year}';
+    } else if (diff.inDays < 7) {
+      const days = [
+        'Ponedeljak', 'Utorak', 'Sreda', 'Četvrtak',
+        'Petak', 'Subota', 'Nedelja'
+      ];
+      return days[date.weekday - 1];
     }
+    return '${date.day}.${date.month}.${date.year}';
   }
 
-  // updated empty state
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(Color textSecondary) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Column(
           children: [
-            Icon(
-              Icons.directions_run_outlined,
-              size: 80,
-              color: AppColors.textGrey.withOpacity(0.3),
-            ),
+            Icon(Icons.directions_run_outlined,
+                size: 80, color: textSecondary.withOpacity(0.3)),
             const SizedBox(height: 16),
-            Text(
-              'Nema aktivnosti',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textGrey,
-              ),
-            ),
+            Text('Nema aktivnosti',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: textSecondary)),
             const SizedBox(height: 8),
             Text(
-              'Pritisnite dugme ispod da započnete svoju prvu aktivnost',
+              'Pritisnite dugme ispod da započnete prvu aktivnost',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textGrey.withOpacity(0.7),
-              ),
+                  fontSize: 14, color: textSecondary.withOpacity(0.7)),
             ),
           ],
         ),
@@ -539,21 +481,14 @@ class _FeedScreenState extends State<FeedScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.9),
-            fontSize: 12,
-          ),
-        ),
+        Text(value,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold)),
+        Text(label,
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.9), fontSize: 12)),
       ],
     );
   }

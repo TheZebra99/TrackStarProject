@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../utils/colors.dart';
+import '../../utils/app_settings.dart';
 import '../../services/database_service.dart';
 import '../../services/location_service.dart';
 import '../../models/activity.dart';
@@ -17,6 +18,13 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
   final int _currentUserId = 1;
   List<Activity> _favorites = [];
   bool _isLoading = true;
+
+  // Night mode helpers
+  bool get _isDark => AppSettings.instance.darkMode;
+  Color get _bgColor => _isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
+  Color get _cardBg  => _isDark ? const Color(0xFF1E1E1E) : Colors.white;
+  Color get _textPrimary   => _isDark ? Colors.white : AppColors.textDark;
+  Color get _textSecondary => _isDark ? Colors.white60 : AppColors.textGrey;
 
   @override
   void initState() {
@@ -52,19 +60,19 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: _bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _cardBg,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Omiljene rute',
           style: TextStyle(
-              color: AppColors.textDark,
+              color: _textPrimary,
               fontSize: 20,
               fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+          icon: Icon(Icons.arrow_back, color: _textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -87,7 +95,7 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cardBg,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -117,13 +125,13 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(activity.typeName,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.textDark)),
+                              color: _textPrimary)),
                       Text(_formatDate(activity.startTime),
                           style: TextStyle(
-                              fontSize: 12, color: AppColors.textGrey)),
+                              fontSize: 12, color: _textSecondary)),
                     ],
                   ),
                 ),
@@ -161,12 +169,12 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
     return Column(
       children: [
         Text(value,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textDark)),
+                color: _textPrimary)),
         Text(label,
-            style: TextStyle(fontSize: 11, color: AppColors.textGrey)),
+            style: TextStyle(fontSize: 11, color: _textSecondary)),
       ],
     );
   }
@@ -249,10 +257,10 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.star_border,
-              size: 72, color: AppColors.textGrey.withOpacity(0.3)),
+              size: 72, color: _textSecondary.withOpacity(0.3)),
           const SizedBox(height: 16),
           Text('Nema omiljenih ruta',
-              style: TextStyle(fontSize: 18, color: AppColors.textGrey)),
+              style: TextStyle(fontSize: 18, color: _textSecondary)),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -261,7 +269,7 @@ class _FavoriteRoutesScreenState extends State<FavoriteRoutesScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 13,
-                  color: AppColors.textGrey.withOpacity(0.7)),
+                  color: _textSecondary.withOpacity(0.7)),
             ),
           ),
         ],

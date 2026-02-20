@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
+import '../../utils/app_settings.dart';
 
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -9,7 +10,9 @@ import 'package:trackstar/services/database_service.dart';
 import 'package:trackstar/services/user_session.dart';
 import 'package:trackstar/models/activity.dart';
 import 'package:trackstar/models/achievement.dart';
+import 'package:trackstar/screens/profile/achievements_screen.dart';
 import 'dart:async';
+import 'package:trackstar/widgets/achievement_banner.dart';
 
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({Key? key}) : super(key: key);
@@ -38,6 +41,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
   bool _hasPermission = false;
   bool _isLoadingMap = true;
 
+  // Night mode helpers
+  bool get _isDark => AppSettings.instance.darkMode;
+  Color get _cardBg => _isDark ? const Color(0xFF1E1E1E) : Colors.white;
+  Color get _textPrimary => _isDark ? Colors.white : AppColors.textDark;
+  Color get _textSecondary => _isDark ? Colors.white60 : AppColors.textGrey;
+
   @override
   void initState() {
     super.initState();
@@ -48,30 +57,45 @@ class _ActivityScreenState extends State<ActivityScreen> {
   Future<Set<String>> _getLockedBefore() async {
     final stats = await DatabaseService.instance
         .getUserStats(UserSession.instance.userId);
-    final acts = stats['totalActivities'] as int;
-    final dist = stats['totalDistance'] as double;
+    final acts      = stats['totalActivities']   as int;
+    final dist      = stats['totalDistance']     as double;
+    final maxSingle = stats['maxSingleDistance'] as double;
     return allAchievements
-        .where((a) => !a.isUnlocked(acts, dist))
+        .where((a) => !a.isUnlocked(acts, dist, maxSingle))
         .map((a) => a.id)
         .toSet();
   }
 
-  void _notifyNewAchievements(List<Achievement> newlyUnlocked) {
+  void _notifyNewAchievements(
+      List<Achievement> newlyUnlocked, Map<String, dynamic> stats) {
     if (newlyUnlocked.isEmpty) return;
-
     for (final achievement in newlyUnlocked) {
-      _showAchievementOverlay(achievement);
+      _showAchievementOverlay(achievement, stats);
     }
   }
 
-  void _showAchievementOverlay(Achievement achievement) {
+  void _showAchievementOverlay(
+      Achievement achievement, Map<String, dynamic> stats) {
     final overlay = Overlay.of(context);
     late OverlayEntry entry;
 
     entry = OverlayEntry(
-      builder: (_) => _AchievementBanner(
+      builder: (_) => AchievementBanner(
         achievement: achievement,
         onDismiss: () => entry.remove(),
+        onTap: () {
+          entry.remove();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AchievementsScreen(
+                totalActivities:   stats['totalActivities']   as int,
+                totalDistance:     stats['totalDistance']     as double,
+                maxSingleDistance: stats['maxSingleDistance'] as double,
+              ),
+            ),
+          );
+        },
       ),
     );
 
@@ -90,8 +114,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   : FlutterMap(
                       mapController: _mapController,
                       options: MapOptions(
-                        center: _currentPosition ??
-                            LatLng(44.0165, 21.0059),
+                        center: _currentPosition ?? LatLng(44.0165, 21.0059),
                         zoom: 15.0,
                         minZoom: 3.0,
                         maxZoom: 18.0,
@@ -114,13 +137,14 @@ class _ActivityScreenState extends State<ActivityScreen> {
                           MarkerLayer(markers: [
                             Marker(
                               point: _currentPosition!,
-                              width: 40, height: 40,
+                              width: 40,
+                              height: 40,
                               child: Container(
                                 decoration: BoxDecoration(
                                   color: Colors.blue,
                                   shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: Colors.white, width: 3),
+                                  border:
+                                      Border.all(color: Colors.white, width: 3),
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black.withOpacity(0.3),
@@ -136,15 +160,17 @@ class _ActivityScreenState extends State<ActivityScreen> {
                       ],
                     ),
 
-          // Stats overlay
+          // Stats overlay — respects night mode
           Positioned(
-            top: 0, left: 0, right: 0,
+            top: 0,
+            left: 0,
+            right: 0,
             child: SafeArea(
               child: Container(
                 margin: const EdgeInsets.all(16),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: _cardBg,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
@@ -171,25 +197,23 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
           // Start / Stop button
           Positioned(
-            bottom: 40, left: 0, right: 0,
+            bottom: 40,
+            left: 0,
+            right: 0,
             child: Center(
               child: GestureDetector(
-                onTap: _isTracking
-                    ? _stopActivity
-                    : _showActivityTypeSelector,
+                onTap: _isTracking ? _stopActivity : _showActivityTypeSelector,
                 child: Container(
-                  width: 80, height: 80,
+                  width: 80,
+                  height: 80,
                   decoration: BoxDecoration(
-                    color: _isTracking
-                        ? Colors.red
-                        : AppColors.primaryOrange,
+                    color: _isTracking ? Colors.red : AppColors.primaryOrange,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: (_isTracking
-                                ? Colors.red
-                                : AppColors.primaryOrange)
-                            .withOpacity(0.4),
+                        color:
+                            (_isTracking ? Colors.red : AppColors.primaryOrange)
+                                .withOpacity(0.4),
                         blurRadius: 15,
                         offset: const Offset(0, 5),
                       ),
@@ -212,15 +236,14 @@ class _ActivityScreenState extends State<ActivityScreen> {
   Widget _buildStatItem(String value, String label, IconData icon) {
     return Column(
       children: [
-        Icon(icon, color: AppColors.textGrey, size: 20),
+        Icon(icon, color: _textSecondary, size: 20),
         const SizedBox(height: 4),
         Text(value,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textDark)),
-        Text(label,
-            style: TextStyle(fontSize: 12, color: AppColors.textGrey)),
+                color: _textPrimary)),
+        Text(label, style: TextStyle(fontSize: 12, color: _textSecondary)),
       ],
     );
   }
@@ -293,8 +316,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          border:
-              Border.all(color: AppColors.textGrey.withOpacity(0.2)),
+          border: Border.all(color: AppColors.textGrey.withOpacity(0.2)),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -318,13 +340,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
                           fontWeight: FontWeight.w600,
                           color: AppColors.textDark)),
                   Text(subtitle,
-                      style: TextStyle(
-                          fontSize: 14, color: AppColors.textGrey)),
+                      style:
+                          TextStyle(fontSize: 14, color: AppColors.textGrey)),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios,
-                color: AppColors.textGrey, size: 16),
+            Icon(Icons.arrow_forward_ios, color: AppColors.textGrey, size: 16),
           ],
         ),
       ),
@@ -360,8 +381,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   Future<void> _stopActivity() async {
-    final avgSpeed =
-        _distance > 0 ? (_distance / (_duration / 3600)) : 0.0;
+    final avgSpeed = _distance > 0 ? (_distance / (_duration / 3600)) : 0.0;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -400,13 +420,14 @@ class _ActivityScreenState extends State<ActivityScreen> {
       // find newly unlocked achievements and notify
       final statsAfter = await DatabaseService.instance
           .getUserStats(UserSession.instance.userId);
-      final actsAfter = statsAfter['totalActivities'] as int;
-      final distAfter = statsAfter['totalDistance'] as double;
+      final actsAfter      = statsAfter['totalActivities']   as int;
+      final distAfter      = statsAfter['totalDistance']     as double;
+      final maxSingleAfter = statsAfter['maxSingleDistance'] as double;
 
       final newlyUnlocked = allAchievements
           .where((a) =>
               lockedBefore.contains(a.id) &&
-              a.isUnlocked(actsAfter, distAfter))
+              a.isUnlocked(actsAfter, distAfter, maxSingleAfter))
           .toList();
 
       if (mounted) {
@@ -416,7 +437,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        _notifyNewAchievements(newlyUnlocked);
+        _notifyNewAchievements(newlyUnlocked, statsAfter);
       }
     }
   }
@@ -432,7 +453,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
       startTime: _startTime!,
       endTime: DateTime.now(),
       routePolyline: routePolyline.isNotEmpty ? routePolyline : null,
-      userId: UserSession.instance.userId, // use session user
+      userId: UserSession.instance.userId,
     );
     await DatabaseService.instance.insertActivity(activity);
   }
@@ -500,12 +521,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Lokacija isključena'),
-        content: const Text(
-            'Molimo uključite lokaciju u podešavanjima telefona.'),
+        content:
+            const Text('Molimo uključite lokaciju u podešavanjima telefona.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK')),
+              onPressed: () => Navigator.pop(context), child: const Text('OK')),
         ],
       ),
     );
@@ -558,135 +578,14 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
   Color _getRouteColor() {
     switch (_activityType) {
-      case 'walk':  return Colors.green;
-      case 'run':   return AppColors.primaryOrange;
-      case 'cycle': return Colors.blue;
-      default:      return AppColors.primaryOrange;
+      case 'walk':
+        return Colors.green;
+      case 'run':
+        return AppColors.primaryOrange;
+      case 'cycle':
+        return Colors.blue;
+      default:
+        return AppColors.primaryOrange;
     }
-  }
-}
-
-// Achievement banner overlay
-class _AchievementBanner extends StatefulWidget {
-  final Achievement achievement;
-  final VoidCallback onDismiss;
-
-  const _AchievementBanner({
-    required this.achievement,
-    required this.onDismiss,
-  });
-
-  @override
-  State<_AchievementBanner> createState() => _AchievementBannerState();
-}
-
-class _AchievementBannerState extends State<_AchievementBanner>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _slide = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-    _controller.forward();
-
-    // Auto-dismiss after 3.5 s
-    Future.delayed(const Duration(milliseconds: 3500), _dismiss);
-  }
-
-  void _dismiss() async {
-    if (!mounted) return;
-    await _controller.reverse();
-    widget.onDismiss();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      bottom: 100,
-      left: 16,
-      right: 16,
-      child: SlideTransition(
-        position: _slide,
-        child: Material(
-          elevation: 8,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF6B35), Color(0xFFFF8C55)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(widget.achievement.icon,
-                      color: Colors.white, size: 28),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '🏆 Novo dostignuće!',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        widget.achievement.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        widget.achievement.description,
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: _dismiss,
-                  child: const Icon(Icons.close,
-                      color: Colors.white70, size: 20),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

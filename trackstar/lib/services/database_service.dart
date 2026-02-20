@@ -60,26 +60,19 @@ class DatabaseService {
             await db.execute(
               'ALTER TABLE activities ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0',
             );
-          } catch (_) {} // column may already exist
+          } catch (_) {}
         }
       },
       version: 3,
     );
   }
 
-  // user section
-
-  /// Inserts a new user and returns the new row id (= the users id)
   Future<int> insertUser(User user) async {
     final db = await database;
-    return db.insert(
-      'users',
-      user.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.abort, // fail on duplicate email
-    );
+    return db.insert('users', user.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.abort);
   }
 
-  /// Returns true if an account with an email already exists
   Future<bool> emailExists(String email) async {
     final db = await database;
     final rows = await db.query('users',
@@ -102,13 +95,15 @@ class DatabaseService {
 
   Future<void> updateUser(User user) async {
     final db = await database;
-    await db.update('users', user.toMap(),
-        where: 'id = ?', whereArgs: [user.id]);
+    await db
+        .update('users', user.toMap(), where: 'id = ?', whereArgs: [user.id]);
   }
 
-  Future<void> deleteUser(int? id) async {
+  Future<void> deleteUser(int id) async {
     final db = await database;
     await db.delete('users', where: 'id = ?', whereArgs: [id]);
+    // Also delete their activities
+    await db.delete('activities', where: 'userId = ?', whereArgs: [id]);
   }
 
   Future<User?> getUserByEmail(String email) async {
@@ -125,8 +120,6 @@ class DatabaseService {
     );
   }
 
-  // activity section
-
   Future<int> insertActivity(Activity activity) async {
     final db = await database;
     return db.insert('activities', activity.toMap(),
@@ -136,9 +129,7 @@ class DatabaseService {
   Future<List<Activity>> getActivitiesByUser(int userId) async {
     final db = await database;
     final maps = await db.query('activities',
-        where: 'userId = ?',
-        whereArgs: [userId],
-        orderBy: 'startTime DESC');
+        where: 'userId = ?', whereArgs: [userId], orderBy: 'startTime DESC');
     return maps.map((m) => Activity.fromMap(m)).toList();
   }
 
@@ -163,30 +154,35 @@ class DatabaseService {
 
   Future<void> toggleFavorite(int activityId, bool isFavorite) async {
     final db = await database;
-    await db.update(
-      'activities',
-      {'isFavorite': isFavorite ? 1 : 0},
-      where: 'id = ?',
-      whereArgs: [activityId],
-    );
+    await db.update('activities', {'isFavorite': isFavorite ? 1 : 0},
+        where: 'id = ?', whereArgs: [activityId]);
   }
 
+  /// Returns totalActivities, totalDistance, totalDuration and maxSingleDistance
   Future<Map<String, dynamic>> getUserStats(int userId) async {
     final db = await database;
     final result = await db.rawQuery(
       '''SELECT COUNT(*) AS totalActivities,
-                SUM(distance) AS totalDistance,
-                SUM(duration) AS totalDuration
+                COALESCE(SUM(distance), 0.0) AS totalDistance,
+                COALESCE(SUM(duration), 0)   AS totalDuration,
+                COALESCE(MAX(distance), 0.0) AS maxSingleDistance
          FROM activities WHERE userId = ?''',
       [userId],
     );
     if (result.isEmpty) {
-      return {'totalActivities': 0, 'totalDistance': 0.0, 'totalDuration': 0};
+      return {
+        'totalActivities': 0,
+        'totalDistance': 0.0,
+        'totalDuration': 0,
+        'maxSingleDistance': 0.0,
+      };
     }
     return {
       'totalActivities': result.first['totalActivities'] as int,
-      'totalDistance': (result.first['totalDistance'] as num?)?.toDouble() ?? 0.0,
-      'totalDuration': result.first['totalDuration'] as int? ?? 0,
+      'totalDistance': (result.first['totalDistance'] as num).toDouble(),
+      'totalDuration': (result.first['totalDuration'] as num).toInt(),
+      'maxSingleDistance':
+          (result.first['maxSingleDistance'] as num).toDouble(),
     };
   }
 

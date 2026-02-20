@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/colors.dart';
 import '../../utils/app_settings.dart';
 import '../../services/database_service.dart';
 import '../../services/user_session.dart';
 import '../../models/user.dart';
+import '../auth/login_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({Key? key}) : super(key: key);
@@ -24,11 +26,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill with the real session user's data
-    _nameController  = TextEditingController(
-        text: UserSession.instance.displayName);
-    _emailController = TextEditingController(
-        text: UserSession.instance.email);
+    _nameController  = TextEditingController(text: UserSession.instance.displayName);
+    _emailController = TextEditingController(text: UserSession.instance.email);
   }
 
   @override
@@ -44,11 +43,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
 
-    final session = UserSession.instance;
+    final session  = UserSession.instance;
     final newName  = _nameController.text.trim();
     final newEmail = _emailController.text.trim();
 
-    // Check duplicate email only if it changed
     if (newEmail != session.email) {
       final exists = await DatabaseService.instance.emailExists(newEmail);
       if (exists) {
@@ -56,10 +54,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Email je već u upotrebi.'),
-              backgroundColor: Colors.red,
-            ),
-          );
+                content: Text('Email je već u upotrebi.'),
+                backgroundColor: Colors.red));
         }
         return;
       }
@@ -77,24 +73,64 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
 
     await DatabaseService.instance.updateUser(updatedUser);
-    UserSession.instance.setUser(updatedUser); // keep session in sync
+    UserSession.instance.setUser(updatedUser);
 
     setState(() => _isSaving = false);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Profil uspešno ažuriran'),
-          backgroundColor: Colors.green,
-        ),
+            content: Text('Profil uspešno ažuriran'),
+            backgroundColor: Colors.green));
+      Navigator.pop(context, true);
+    }
+  }
+
+  // Delete account
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Obriši nalog'),
+        content: const Text(
+            'Ova akcija je trajna. Vaš nalog i sve aktivnosti biće obrisani. Jeste li sigurni?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Otkaži')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Obriši',
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final userId = UserSession.instance.userId;
+
+    // Delete persisted profile image for this user
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('profile_image_path_$userId');
+
+    // Delete user + activities from DB
+    await DatabaseService.instance.deleteUser(userId);
+
+    UserSession.instance.clearUser();
+
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
       );
-      Navigator.pop(context, true); // pass 'true' so profile screen refreshes
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppSettings.instance.darkMode;
-    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final isDark     = AppSettings.instance.darkMode;
+    final cardBg     = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final labelColor = isDark ? Colors.white70 : AppColors.textGrey;
 
     return Scaffold(
@@ -103,13 +139,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       appBar: AppBar(
         backgroundColor: cardBg,
         elevation: 0,
-        title: Text(
-          'Uredi profil',
-          style: TextStyle(
-              color: isDark ? Colors.white : AppColors.textDark,
-              fontSize: 20,
-              fontWeight: FontWeight.bold),
-        ),
+        title: Text('Uredi profil',
+            style: TextStyle(
+                color: isDark ? Colors.white : AppColors.textDark,
+                fontSize: 20,
+                fontWeight: FontWeight.bold)),
         leading: IconButton(
           icon: Icon(Icons.arrow_back,
               color: isDark ? Colors.white : AppColors.textDark),
@@ -120,16 +154,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             onPressed: _isSaving ? null : _save,
             child: _isSaving
                 ? const SizedBox(
-                    width: 20,
-                    height: 20,
+                    width: 20, height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text(
-                    'Sačuvaj',
+                : const Text('Sačuvaj',
                     style: TextStyle(
                         color: AppColors.primaryOrange,
                         fontWeight: FontWeight.bold,
-                        fontSize: 16),
-                  ),
+                        fontSize: 16)),
           ),
         ],
       ),
@@ -143,13 +174,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               _sectionLabel('Lični podaci', labelColor),
               const SizedBox(height: 12),
 
-              // Visible labels
               _field(
                 controller: _nameController,
                 label: 'Ime i prezime',
                 icon: Icons.person_outline,
-                cardBg: cardBg,
-                isDark: isDark,
+                cardBg: cardBg, isDark: isDark,
                 validator: (v) =>
                     (v == null || v.isEmpty) ? 'Unesite ime' : null,
               ),
@@ -159,8 +188,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 label: 'Email',
                 icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
-                cardBg: cardBg,
-                isDark: isDark,
+                cardBg: cardBg, isDark: isDark,
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Unesite email';
                   if (!v.contains('@')) return 'Unesite validan email';
@@ -171,11 +199,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 32),
               _sectionLabel('Promenite lozinku', labelColor),
               const SizedBox(height: 4),
-              Text(
-                'Ostavite prazno ako ne želite da menjate lozinku.',
-                style: TextStyle(
-                    fontSize: 12, color: labelColor.withOpacity(0.8)),
-              ),
+              Text('Ostavite prazno ako ne želite da menjate lozinku.',
+                  style: TextStyle(
+                      fontSize: 12, color: labelColor.withOpacity(0.8))),
               const SizedBox(height: 12),
 
               _field(
@@ -183,8 +209,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 label: 'Nova lozinka',
                 icon: Icons.lock_outline,
                 obscure: !_showPassword,
-                cardBg: cardBg,
-                isDark: isDark,
+                cardBg: cardBg, isDark: isDark,
                 suffixIcon: IconButton(
                   icon: Icon(_showPassword
                       ? Icons.visibility_outlined
@@ -205,8 +230,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 label: 'Potvrdite lozinku',
                 icon: Icons.lock_outline,
                 obscure: !_showPassword,
-                cardBg: cardBg,
-                isDark: isDark,
+                cardBg: cardBg, isDark: isDark,
                 validator: (v) {
                   if (_passwordController.text.isNotEmpty &&
                       v != _passwordController.text) {
@@ -214,6 +238,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   }
                   return null;
                 },
+              ),
+
+              const SizedBox(height: 40),
+
+              // Delete account
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.delete_forever, color: Colors.red),
+                  label: const Text('Obriši nalog',
+                      style: TextStyle(color: Colors.red, fontSize: 16)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: _deleteAccount,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Text('Ova akcija je trajna i ne može se poništiti.',
+                    style: TextStyle(
+                        fontSize: 12, color: labelColor.withOpacity(0.7))),
               ),
             ],
           ),
@@ -223,17 +272,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _sectionLabel(String text, Color color) {
-    return Text(
-      text,
-      style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: color,
-          letterSpacing: 0.5),
-    );
+    return Text(text,
+        style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: color,
+            letterSpacing: 0.5));
   }
 
-  //  _field now accepts isDark + cardBg so labels are always visible
   Widget _field({
     required TextEditingController controller,
     required String label,
@@ -245,8 +291,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     bool obscure = false,
     Widget? suffixIcon,
   }) {
-    final textColor  = isDark ? Colors.white : AppColors.textDark;
-    final labelColor = isDark ? Colors.white60 : AppColors.textGrey;
+    final textColor   = isDark ? Colors.white : AppColors.textDark;
+    final labelColor  = isDark ? Colors.white60 : AppColors.textGrey;
     final borderColor = isDark
         ? Colors.white24
         : AppColors.textGrey.withOpacity(0.4);
@@ -260,30 +306,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: TextStyle(color: labelColor, fontSize: 14),
-        floatingLabelStyle: TextStyle(
-            color: AppColors.primaryOrange,
-            fontWeight: FontWeight.w600),
+        floatingLabelStyle: const TextStyle(
+            color: AppColors.primaryOrange, fontWeight: FontWeight.w600),
         prefixIcon: Icon(icon, color: labelColor),
         suffixIcon: suffixIcon,
         filled: true,
         fillColor: cardBg,
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: borderColor),
-        ),
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: borderColor)),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: AppColors.primaryOrange, width: 2),
-        ),
+            borderRadius: BorderRadius.circular(12),
+            borderSide:
+                const BorderSide(color: AppColors.primaryOrange, width: 2)),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red),
-        ),
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red)),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red, width: 2),
-        ),
+            borderRadius: BorderRadius.circular(12),
+            borderSide:
+                const BorderSide(color: Colors.red, width: 2)),
       ),
     );
   }

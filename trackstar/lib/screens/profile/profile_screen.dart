@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:trackstar/screens/profile/activity_history_screen.dart';
+import 'package:trackstar/screens/profile/achievements_screen.dart';
 import 'package:trackstar/screens/profile/edit_profile_screen.dart';
 import 'package:trackstar/screens/profile/favorite_routes_screen.dart';
 import 'package:trackstar/screens/profile/settings_panel.dart';
@@ -25,10 +26,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _totalActivities = 0;
   double _totalDistance = 0.0;
   int _totalDuration = 0;
+  double _maxSingleDistance = 0.0;
 
   File? _profileImage;
   final ImagePicker _imagePicker = ImagePicker();
-  static const _imgKey = 'profile_image_path';
+
+  // Per-user image key so switching accounts clears the picture
+  String get _imgKey => 'profile_image_path_${UserSession.instance.userId}';
 
   @override
   void initState() {
@@ -42,21 +46,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final stats = await DatabaseService.instance
           .getUserStats(UserSession.instance.userId);
       setState(() {
-        _totalActivities = stats['totalActivities'] as int;
-        _totalDistance   = stats['totalDistance']   as double;
-        _totalDuration   = stats['totalDuration']   as int;
+        _totalActivities   = stats['totalActivities']   as int;
+        _totalDistance     = stats['totalDistance']     as double;
+        _totalDuration     = stats['totalDuration']     as int;
+        _maxSingleDistance = stats['maxSingleDistance'] as double;
       });
     } catch (e) {
       debugPrint('Error loading profile stats: $e');
     }
   }
 
-  // added image saving
   Future<void> _loadSavedImage() async {
     final prefs = await SharedPreferences.getInstance();
     final path = prefs.getString(_imgKey);
     if (path != null && File(path).existsSync()) {
       setState(() => _profileImage = File(path));
+    } else {
+      setState(() => _profileImage = null);
     }
   }
 
@@ -76,75 +82,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickProfileImage() async {
+    final isDark = AppSettings.instance.darkMode;
+    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) {
-        final isDark = AppSettings.instance.darkMode;
-        final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-        return Container(
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Promenite profilnu sliku',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : AppColors.textDark)),
-              const SizedBox(height: 20),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
+      builder: (_) => Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Promenite profilnu sliku',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : AppColors.textDark)),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
                     color: AppColors.primaryOrange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.camera_alt,
-                      color: AppColors.primaryOrange),
-                ),
-                title: const Text('Kamera'),
-                onTap: () => Navigator.pop(context, ImageSource.camera),
+                    borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.camera_alt,
+                    color: AppColors.primaryOrange),
               ),
+              title: const Text('Kamera'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                    color: AppColors.accentBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.photo_library,
+                    color: AppColors.accentBlue),
+              ),
+              title: const Text('Galerija'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            if (_profileImage != null)
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.accentBlue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.photo_library,
-                      color: AppColors.accentBlue),
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.delete, color: Colors.red),
                 ),
-                title: const Text('Galerija'),
-                onTap: () => Navigator.pop(context, ImageSource.gallery),
+                title: const Text('Uklonite sliku'),
+                onTap: () {
+                  setState(() => _profileImage = null);
+                  _saveImagePath(null);
+                  Navigator.pop(context);
+                },
               ),
-              if (_profileImage != null)
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.delete, color: Colors.red),
-                  ),
-                  title: const Text('Uklonite sliku'),
-                  onTap: () {
-                    setState(() => _profileImage = null);
-                    _saveImagePath(null); // added image saving
-                    Navigator.pop(context);
-                  },
-                ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        );
-      },
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
     );
 
     if (source != null) {
@@ -156,7 +158,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       if (picked != null) {
         setState(() => _profileImage = File(picked.path));
-        await _saveImagePath(picked.path); // added image saving
+        await _saveImagePath(picked.path);
       }
     }
   }
@@ -172,10 +174,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // added theme-aware colors so dark mode actually works
-    final isDark  = AppSettings.instance.darkMode;
-    final bgColor = isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
-    final cardBg  = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final isDark        = AppSettings.instance.darkMode;
+    final bgColor       = isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
+    final cardBg        = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final textPrimary   = isDark ? Colors.white : AppColors.textDark;
     final textSecondary = isDark ? Colors.white60 : AppColors.textGrey;
 
@@ -226,7 +227,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             child: _profileImage == null
                                 ? const Icon(Icons.person,
-                                    size: 50, color: AppColors.primaryOrange)
+                                    size: 50,
+                                    color: AppColors.primaryOrange)
                                 : null,
                           ),
                         ),
@@ -239,7 +241,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               decoration: BoxDecoration(
                                 color: AppColors.primaryOrange,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
+                                border: Border.all(
+                                    color: Colors.white, width: 2),
                               ),
                               child: const Icon(Icons.edit,
                                   size: 16, color: Colors.white),
@@ -249,24 +252,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // show real name from UserSession
                     Text(UserSession.instance.displayName,
                         style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: textPrimary)),
                     const SizedBox(height: 4),
-                    // show real email from UserSession
                     Text(UserSession.instance.email,
-                        style: TextStyle(
-                            fontSize: 14, color: textSecondary)),
+                        style:
+                            TextStyle(fontSize: 14, color: textSecondary)),
                     const SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildStatColumn(
-                            '$_totalActivities', 'Aktivnosti',
-                            textPrimary, textSecondary),
+                        _buildStatColumn('$_totalActivities',
+                            'Aktivnosti', textPrimary, textSecondary),
                         Container(
                             height: 40,
                             width: 1,
@@ -291,6 +291,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 16),
 
+              // Achievements preview
               Container(
                 color: cardBg,
                 width: double.infinity,
@@ -298,13 +299,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text('Dostignuća',
-                        style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: textPrimary)),
-                    const SizedBox(height: 16),
-                    _buildAchievements(textSecondary),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Dostignuća',
+                            style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: textPrimary)),
+                        // "Vidi sve" navigates to AchievementsScreen
+                        TextButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AchievementsScreen(
+                                totalActivities: _totalActivities,
+                                totalDistance: _totalDistance,
+                                maxSingleDistance: _maxSingleDistance,
+                              ),
+                            ),
+                          ),
+                          child: const Text('Vidi sve',
+                              style: TextStyle(
+                                  color: AppColors.primaryOrange)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildAchievementsPreview(textSecondary, textPrimary),
                   ],
                 ),
               ),
@@ -346,20 +368,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Omiljene rute',
                       textPrimary: textPrimary,
                       textSecondary: textSecondary,
-                      onTap: () => Navigator.push(context,
+                      onTap: () => Navigator.push(
+                          context,
                           MaterialPageRoute(
-                              builder: (_) => const FavoriteRoutesScreen())),
-                    ),
-                    _buildDivider(textSecondary),
-                    _buildMenuItem(
-                      icon: Icons.notifications_outlined,
-                      title: 'Obaveštenja',
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Dolazi uskoro'),
-                              duration: Duration(seconds: 1))),
+                              builder: (_) =>
+                                  const FavoriteRoutesScreen())),
                     ),
                     _buildDivider(textSecondary),
                     _buildMenuItem(
@@ -367,10 +380,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Pomoć i podrška',
                       textPrimary: textPrimary,
                       textSecondary: textSecondary,
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Dolazi uskoro'),
-                              duration: Duration(seconds: 1))),
+                      onTap: () =>
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Dolazi uskoro'),
+                                  duration: Duration(seconds: 1))),
                     ),
                     _buildDivider(textSecondary),
                     _buildMenuItem(
@@ -393,9 +407,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildAchievements(Color textSecondary) {
+  // Achievements preview
+  Widget _buildAchievementsPreview(Color textSecondary, Color textPrimary) {
     final unlocked = allAchievements
-        .where((a) => a.isUnlocked(_totalActivities, _totalDistance))
+        .where((a) =>
+            a.isUnlocked(_totalActivities, _totalDistance, _maxSingleDistance))
+        .take(4)
         .toList();
 
     if (unlocked.isEmpty) {
@@ -410,19 +427,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
-    return Center(
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 16,
-        alignment: WrapAlignment.center,
-        children: unlocked
-            .map((a) => _buildAchievementBadge(a))
-            .toList(),
-      ),
+    return Wrap(
+      spacing: 16,
+      runSpacing: 16,
+      alignment: WrapAlignment.center,
+      children: unlocked.map((a) => _buildBadge(a, textPrimary)).toList(),
     );
   }
 
-  Widget _buildAchievementBadge(Achievement a) {
+  Widget _buildBadge(Achievement a, Color textPrimary) {
     return GestureDetector(
       onTap: () => showDialog(
         context: context,
@@ -456,17 +469,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 6),
           SizedBox(
             width: 72,
-            child: Text(
-              a.title,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textDark,
-              ),
-            ),
+            child: Text(a.title,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: textPrimary)),
           ),
         ],
       ),
@@ -496,20 +506,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     return ListTile(
       leading: Icon(icon, color: iconColor ?? textPrimary),
-      title: Text(title,
-          style: TextStyle(fontSize: 16, color: textPrimary)),
-      trailing: Icon(Icons.arrow_forward_ios, size: 16, color: textSecondary),
+      title: Text(title, style: TextStyle(fontSize: 16, color: textPrimary)),
+      trailing:
+          Icon(Icons.arrow_forward_ios, size: 16, color: textSecondary),
       onTap: onTap,
     );
   }
 
-  Widget _buildDivider(Color textSecondary) {
-    return Divider(
-        height: 1,
-        thickness: 1,
-        color: textSecondary.withOpacity(0.1),
-        indent: 56);
-  }
+  Widget _buildDivider(Color textSecondary) => Divider(
+      height: 1,
+      thickness: 1,
+      color: textSecondary.withOpacity(0.1),
+      indent: 56);
 
   void _handleLogout() {
     showDialog(

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:trackstar/screens/profile/activity_history_screen.dart';
 import 'package:trackstar/screens/profile/edit_profile_screen.dart';
 import 'package:trackstar/screens/profile/favorite_routes_screen.dart';
 import 'package:trackstar/screens/profile/settings_panel.dart';
 import '../../utils/colors.dart';
+import '../../utils/app_settings.dart';
 import '../auth/login_screen.dart';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 import '../../services/database_service.dart';
+import '../../services/user_session.dart';
 import '../../models/achievement.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -18,111 +22,129 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final int _currentUserId = 1;
-
   int _totalActivities = 0;
   double _totalDistance = 0.0;
   int _totalDuration = 0;
 
   File? _profileImage;
   final ImagePicker _imagePicker = ImagePicker();
+  static const _imgKey = 'profile_image_path';
 
   @override
   void initState() {
     super.initState();
     _loadStats();
+    _loadSavedImage();
   }
 
   Future<void> _loadStats() async {
     try {
-      final stats = await DatabaseService.instance.getUserStats(_currentUserId);
+      final stats = await DatabaseService.instance
+          .getUserStats(UserSession.instance.userId);
       setState(() {
         _totalActivities = stats['totalActivities'] as int;
-        _totalDistance = stats['totalDistance'] as double;
-        _totalDuration = stats['totalDuration'] as int;
+        _totalDistance   = stats['totalDistance']   as double;
+        _totalDuration   = stats['totalDuration']   as int;
       });
     } catch (e) {
-      print('Error loading profile stats: $e');
+      debugPrint('Error loading profile stats: $e');
+    }
+  }
+
+  // added image saving
+  Future<void> _loadSavedImage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString(_imgKey);
+    if (path != null && File(path).existsSync()) {
+      setState(() => _profileImage = File(path));
+    }
+  }
+
+  Future<void> _saveImagePath(String? path) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (path == null) {
+      await prefs.remove(_imgKey);
+    } else {
+      await prefs.setString(_imgKey, path);
     }
   }
 
   String _formatTotalDuration(int seconds) {
-    final hours = seconds ~/ 3600;
+    final hours   = seconds ~/ 3600;
     final minutes = (seconds % 3600) ~/ 60;
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    } else {
-      return '${minutes}m';
-    }
+    return hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
   }
 
   Future<void> _pickProfileImage() async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Promenite profilnu sliku',
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark),
-            ),
-            const SizedBox(height: 20),
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryOrange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.camera_alt,
-                    color: AppColors.primaryOrange),
-              ),
-              title: const Text('Kamera'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.accentBlue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.photo_library,
-                    color: AppColors.accentBlue),
-              ),
-              title: const Text('Galerija'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-            if (_profileImage != null)
+      builder: (_) {
+        final isDark = AppSettings.instance.darkMode;
+        final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+        return Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Promenite profilnu sliku',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : AppColors.textDark)),
+              const SizedBox(height: 20),
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: AppColors.primaryOrange.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.delete, color: Colors.red),
+                  child: const Icon(Icons.camera_alt,
+                      color: AppColors.primaryOrange),
                 ),
-                title: const Text('Uklonite sliku'),
-                onTap: () {
-                  setState(() => _profileImage = null);
-                  Navigator.pop(context);
-                },
+                title: const Text('Kamera'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
               ),
-            const SizedBox(height: 12),
-          ],
-        ),
-      ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.photo_library,
+                      color: AppColors.accentBlue),
+                ),
+                title: const Text('Galerija'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              if (_profileImage != null)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.delete, color: Colors.red),
+                  ),
+                  title: const Text('Uklonite sliku'),
+                  onTap: () {
+                    setState(() => _profileImage = null);
+                    _saveImagePath(null); // added image saving
+                    Navigator.pop(context);
+                  },
+                ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
     );
 
     if (source != null) {
@@ -133,41 +155,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
         imageQuality: 85,
       );
       if (picked != null) {
-        setState(() {
-          _profileImage = File(picked.path);
-        });
+        setState(() => _profileImage = File(picked.path));
+        await _saveImagePath(picked.path); // added image saving
       }
     }
   }
 
-  // open settings in profile
   void _openSettingsDrawer() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const SettingsPanel(),
+      builder: (_) => const SettingsPanel(),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // added theme-aware colors so dark mode actually works
+    final isDark  = AppSettings.instance.darkMode;
+    final bgColor = isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
+    final cardBg  = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textPrimary   = isDark ? Colors.white : AppColors.textDark;
+    final textSecondary = isDark ? Colors.white60 : AppColors.textGrey;
+
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cardBg,
         elevation: 0,
-        title: const Text(
-          'Profil',
-          style: TextStyle(
-              color: AppColors.textDark,
-              fontSize: 20,
-              fontWeight: FontWeight.bold),
-        ),
+        title: Text('Profil',
+            style: TextStyle(
+                color: textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon:
-                const Icon(Icons.settings_outlined, color: AppColors.textDark),
+            icon: Icon(Icons.settings_outlined, color: textPrimary),
             onPressed: _openSettingsDrawer,
           ),
         ],
@@ -179,7 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             children: [
               Container(
-                color: Colors.white,
+                color: cardBg,
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
@@ -188,8 +212,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         GestureDetector(
                           onTap: _pickProfileImage,
                           child: Container(
-                            width: 100,
-                            height: 100,
+                            width: 100, height: 100,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: AppColors.primaryOrange.withOpacity(0.1),
@@ -208,18 +231,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         Positioned(
-                          bottom: 0,
-                          right: 0,
+                          bottom: 0, right: 0,
                           child: GestureDetector(
                             onTap: _pickProfileImage,
                             child: Container(
-                              width: 32,
-                              height: 32,
+                              width: 32, height: 32,
                               decoration: BoxDecoration(
                                 color: AppColors.primaryOrange,
                                 shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: Colors.white, width: 2),
+                                border: Border.all(color: Colors.white, width: 2),
                               ),
                               child: const Icon(Icons.edit,
                                   size: 16, color: Colors.white),
@@ -229,128 +249,142 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    const Text('Korisnik',
+                    // show real name from UserSession
+                    Text(UserSession.instance.displayName,
                         style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textDark)),
+                            color: textPrimary)),
                     const SizedBox(height: 4),
-                    Text('user@example.com',
-                        style:
-                            TextStyle(fontSize: 14, color: AppColors.textGrey)),
+                    // show real email from UserSession
+                    Text(UserSession.instance.email,
+                        style: TextStyle(
+                            fontSize: 14, color: textSecondary)),
                     const SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildStatColumn('$_totalActivities', 'Aktivnosti'),
+                        _buildStatColumn(
+                            '$_totalActivities', 'Aktivnosti',
+                            textPrimary, textSecondary),
                         Container(
                             height: 40,
                             width: 1,
-                            color: AppColors.textGrey.withOpacity(0.2)),
+                            color: textSecondary.withOpacity(0.2)),
                         _buildStatColumn(
                             '${_totalDistance.toStringAsFixed(1)} km',
-                            'Ukupna distanca'),
+                            'Ukupna distanca',
+                            textPrimary, textSecondary),
                         Container(
                             height: 40,
                             width: 1,
-                            color: AppColors.textGrey.withOpacity(0.2)),
+                            color: textSecondary.withOpacity(0.2)),
                         _buildStatColumn(
-                            _formatTotalDuration(_totalDuration), 'Vreme'),
+                            _formatTotalDuration(_totalDuration),
+                            'Vreme',
+                            textPrimary, textSecondary),
                       ],
                     ),
                   ],
                 ),
               ),
+
               const SizedBox(height: 16),
+
               Container(
-                color: Colors.white,
+                color: cardBg,
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Text('Achievements',
+                    Text('Dostignuća',
                         style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textDark)),
+                            color: textPrimary)),
                     const SizedBox(height: 16),
-                    _buildAchievements(),
+                    _buildAchievements(textSecondary),
                   ],
                 ),
               ),
+
               const SizedBox(height: 16),
+
               Container(
-                color: Colors.white,
+                color: cardBg,
                 child: Column(
                   children: [
-                    //Uredi profil navigates to EditProfileScreen
-                    _buildSettingsItem(
+                    _buildMenuItem(
                       icon: Icons.edit_outlined,
                       title: 'Uredi profil',
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                             builder: (_) => const EditProfileScreen()),
-                      ),
+                      ).then((changed) {
+                        if (changed == true) setState(() {});
+                      }),
                     ),
-                    _buildDivider(),
-                    // Istorija aktivnosti navigates to ActivityHistoryScreen
-                    _buildSettingsItem(
+                    _buildDivider(textSecondary),
+                    _buildMenuItem(
                       icon: Icons.history,
                       title: 'Istorija aktivnosti',
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                             builder: (_) => const ActivityHistoryScreen()),
                       ).then((_) => _loadStats()),
                     ),
-                    _buildDivider(),
-                    //Omiljene rute navigates to FavoriteRoutesScreen
-                    _buildSettingsItem(
+                    _buildDivider(textSecondary),
+                    _buildMenuItem(
                       icon: Icons.star_outline,
                       title: 'Omiljene rute',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const FavoriteRoutesScreen()),
-                      ),
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(
+                              builder: (_) => const FavoriteRoutesScreen())),
                     ),
-                    _buildDivider(),
-                    _buildSettingsItem(
+                    _buildDivider(textSecondary),
+                    _buildMenuItem(
                       icon: Icons.notifications_outlined,
                       title: 'Obaveštenja',
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
+                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                               content: Text('Dolazi uskoro'),
-                              duration: Duration(seconds: 1)),
-                        );
-                      },
+                              duration: Duration(seconds: 1))),
                     ),
-                    _buildDivider(),
-                    _buildSettingsItem(
+                    _buildDivider(textSecondary),
+                    _buildMenuItem(
                       icon: Icons.help_outline,
                       title: 'Pomoć i podrška',
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                      textPrimary: textPrimary,
+                      textSecondary: textSecondary,
+                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                               content: Text('Dolazi uskoro'),
-                              duration: Duration(seconds: 1)),
-                        );
-                      },
+                              duration: Duration(seconds: 1))),
                     ),
-                    _buildDivider(),
-                    _buildSettingsItem(
+                    _buildDivider(textSecondary),
+                    _buildMenuItem(
                       icon: Icons.logout,
                       title: 'Odjavi se',
-                      titleColor: Colors.red,
+                      textPrimary: Colors.red,
+                      textSecondary: textSecondary,
                       iconColor: Colors.red,
                       onTap: _handleLogout,
                     ),
                   ],
                 ),
               ),
+
               const SizedBox(height: 32),
             ],
           ),
@@ -359,19 +393,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildAchievements() {
-    final unlockedList = allAchievements
+  Widget _buildAchievements(Color textSecondary) {
+    final unlocked = allAchievements
         .where((a) => a.isUnlocked(_totalActivities, _totalDistance))
         .toList();
 
-    if (unlockedList.isEmpty) {
+    if (unlocked.isEmpty) {
       return Column(
         children: [
           Icon(Icons.emoji_events_outlined,
-              size: 60, color: AppColors.textGrey.withOpacity(0.3)),
+              size: 60, color: textSecondary.withOpacity(0.3)),
           const SizedBox(height: 8),
           Text('Nema dostignuća',
-              style: TextStyle(fontSize: 14, color: AppColors.textGrey)),
+              style: TextStyle(fontSize: 14, color: textSecondary)),
         ],
       );
     }
@@ -381,60 +415,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
         spacing: 16,
         runSpacing: 16,
         alignment: WrapAlignment.center,
-        children: unlockedList
-            .map((a) => _buildAchievementBadge(
-                  icon: a.icon,
-                  title: a.title,
-                  description: a.description,
-                ))
+        children: unlocked
+            .map((a) => _buildAchievementBadge(a))
             .toList(),
       ),
     );
   }
 
-  Widget _buildAchievementBadge({
-    required IconData icon,
-    required String title,
-    required String description,
-  }) {
+  Widget _buildAchievementBadge(Achievement a) {
     return GestureDetector(
       onTap: () => showDialog(
         context: context,
         builder: (_) => AlertDialog(
           title: Row(children: [
-            Icon(icon, color: AppColors.primaryOrange),
+            Icon(a.icon, color: AppColors.primaryOrange),
             const SizedBox(width: 8),
-            Text(title),
+            Text(a.title),
           ]),
-          content: Text(description),
+          content: Text(a.description),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            )
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'))
           ],
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 60,
-            height: 60,
+            width: 60, height: 60,
             decoration: BoxDecoration(
               color: AppColors.primaryOrange.withOpacity(0.1),
               shape: BoxShape.circle,
-              border:
-                  Border.all(color: AppColors.primaryOrange.withOpacity(0.5)),
+              border: Border.all(
+                  color: AppColors.primaryOrange.withOpacity(0.5)),
             ),
-            child: Icon(icon, color: AppColors.primaryOrange, size: 28),
+            child: Icon(a.icon, color: AppColors.primaryOrange, size: 28),
           ),
           const SizedBox(height: 6),
           SizedBox(
-            width: 60,
+            width: 72,
             child: Text(
-              title,
+              a.title,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textDark,
+              ),
             ),
           ),
         ],
@@ -442,70 +473,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatColumn(String value, String label) {
+  Widget _buildStatColumn(
+      String value, String label, Color primary, Color secondary) {
     return Column(
       children: [
         Text(value,
-            style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textDark)),
+            style: TextStyle(
+                fontSize: 20, fontWeight: FontWeight.bold, color: primary)),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 12, color: AppColors.textGrey)),
+        Text(label, style: TextStyle(fontSize: 12, color: secondary)),
       ],
     );
   }
 
-  Widget _buildSettingsItem({
+  Widget _buildMenuItem({
     required IconData icon,
     required String title,
+    required Color textPrimary,
+    required Color textSecondary,
     required VoidCallback onTap,
-    Color? titleColor,
     Color? iconColor,
   }) {
     return ListTile(
-      leading: Icon(icon, color: iconColor ?? AppColors.textDark),
+      leading: Icon(icon, color: iconColor ?? textPrimary),
       title: Text(title,
-          style:
-              TextStyle(fontSize: 16, color: titleColor ?? AppColors.textDark)),
-      trailing:
-          Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textGrey),
+          style: TextStyle(fontSize: 16, color: textPrimary)),
+      trailing: Icon(Icons.arrow_forward_ios, size: 16, color: textSecondary),
       onTap: onTap,
     );
   }
 
-  Widget _buildDivider() {
+  Widget _buildDivider(Color textSecondary) {
     return Divider(
-      height: 1,
-      thickness: 1,
-      color: AppColors.textGrey.withOpacity(0.1),
-      indent: 56,
-    );
+        height: 1,
+        thickness: 1,
+        color: textSecondary.withOpacity(0.1),
+        indent: 56);
   }
 
   void _handleLogout() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (_) => AlertDialog(
         title: const Text('Odjavi se'),
-        content: const Text('Da li ste sigurni da želite da se odjavite?'),
+        content:
+            const Text('Da li ste sigurni da želite da se odjavite?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Otkaži'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Otkaži')),
           TextButton(
             onPressed: () {
-              // add clear user session/data later
+              UserSession.instance.clearUser();
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
                 (route) => false,
               );
             },
-            child: const Text(
-              'Odjavi se',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Odjavi se',
+                style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

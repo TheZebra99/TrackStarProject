@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
+import '../../utils/app_settings.dart';
+import '../../services/database_service.dart';
+import '../../services/user_session.dart';
+import '../../models/user.dart';
 
-/// A simple full-screen edit-profile form.
-/// Extend this with database calls once user auth/sessions are in place.
 class EditProfileScreen extends StatefulWidget {
-  final String initialName;
-  final String initialEmail;
-
-  const EditProfileScreen({
-    Key? key,
-    this.initialName = 'Korisnik',
-    this.initialEmail = 'user@example.com',
-  }) : super(key: key);
+  const EditProfileScreen({Key? key}) : super(key: key);
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -23,14 +18,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _emailController;
   final _passwordController = TextEditingController();
   final _confirmController  = TextEditingController();
-  bool _isSaving = false;
+  bool _isSaving     = false;
   bool _showPassword = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController  = TextEditingController(text: widget.initialName);
-    _emailController = TextEditingController(text: widget.initialEmail);
+    // Pre-fill with the real session user's data
+    _nameController  = TextEditingController(
+        text: UserSession.instance.displayName);
+    _emailController = TextEditingController(
+        text: UserSession.instance.email);
   }
 
   @override
@@ -45,8 +43,42 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
-    // TODO: persist changes via DatabaseService / AuthService
-    await Future.delayed(const Duration(milliseconds: 600));
+
+    final session = UserSession.instance;
+    final newName  = _nameController.text.trim();
+    final newEmail = _emailController.text.trim();
+
+    // Check duplicate email only if it changed
+    if (newEmail != session.email) {
+      final exists = await DatabaseService.instance.emailExists(newEmail);
+      if (exists) {
+        setState(() => _isSaving = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Email je već u upotrebi.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    final newPassword = _passwordController.text.isNotEmpty
+        ? _passwordController.text
+        : session.currentUser!.password;
+
+    final updatedUser = User(
+      id: session.userId,
+      name: newName,
+      email: newEmail,
+      password: newPassword,
+    );
+
+    await DatabaseService.instance.updateUser(updatedUser);
+    UserSession.instance.setUser(updatedUser); // keep session in sync
+
     setState(() => _isSaving = false);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -55,26 +87,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.pop(context);
+      Navigator.pop(context, true); // pass 'true' so profile screen refreshes
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppSettings.instance.darkMode;
+    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final labelColor = isDark ? Colors.white70 : AppColors.textGrey;
+
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor:
+          isDark ? const Color(0xFF121212) : AppColors.backgroundLight,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cardBg,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Uredi profil',
           style: TextStyle(
-              color: AppColors.textDark,
+              color: isDark ? Colors.white : AppColors.textDark,
               fontSize: 20,
               fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+          icon: Icon(Icons.arrow_back,
+              color: isDark ? Colors.white : AppColors.textDark),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
@@ -102,12 +140,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionLabel('Lični podaci'),
+              _sectionLabel('Lični podaci', labelColor),
               const SizedBox(height: 12),
+
+              // Visible labels
               _field(
                 controller: _nameController,
                 label: 'Ime i prezime',
                 icon: Icons.person_outline,
+                cardBg: cardBg,
+                isDark: isDark,
                 validator: (v) =>
                     (v == null || v.isEmpty) ? 'Unesite ime' : null,
               ),
@@ -117,27 +159,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 label: 'Email',
                 icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
+                cardBg: cardBg,
+                isDark: isDark,
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Unesite email';
                   if (!v.contains('@')) return 'Unesite validan email';
                   return null;
                 },
               ),
+
               const SizedBox(height: 32),
-              _sectionLabel('Promenite lozinku'),
+              _sectionLabel('Promenite lozinku', labelColor),
               const SizedBox(height: 4),
               Text(
                 'Ostavite prazno ako ne želite da menjate lozinku.',
                 style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textGrey.withOpacity(0.8)),
+                    fontSize: 12, color: labelColor.withOpacity(0.8)),
               ),
               const SizedBox(height: 12),
+
               _field(
                 controller: _passwordController,
                 label: 'Nova lozinka',
                 icon: Icons.lock_outline,
                 obscure: !_showPassword,
+                cardBg: cardBg,
+                isDark: isDark,
                 suffixIcon: IconButton(
                   icon: Icon(_showPassword
                       ? Icons.visibility_outlined
@@ -158,6 +205,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 label: 'Potvrdite lozinku',
                 icon: Icons.lock_outline,
                 obscure: !_showPassword,
+                cardBg: cardBg,
+                isDark: isDark,
                 validator: (v) {
                   if (_passwordController.text.isNotEmpty &&
                       v != _passwordController.text) {
@@ -173,38 +222,68 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _sectionLabel(String text) {
+  Widget _sectionLabel(String text, Color color) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w700,
-          color: AppColors.textGrey,
+          color: color,
           letterSpacing: 0.5),
     );
   }
 
+  //  _field now accepts isDark + cardBg so labels are always visible
   Widget _field({
     required TextEditingController controller,
     required String label,
     required IconData icon,
+    required Color cardBg,
+    required bool isDark,
     String? Function(String?)? validator,
     TextInputType keyboardType = TextInputType.text,
     bool obscure = false,
     Widget? suffixIcon,
   }) {
+    final textColor  = isDark ? Colors.white : AppColors.textDark;
+    final labelColor = isDark ? Colors.white60 : AppColors.textGrey;
+    final borderColor = isDark
+        ? Colors.white24
+        : AppColors.textGrey.withOpacity(0.4);
+
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscure,
       validator: validator,
+      style: TextStyle(color: textColor, fontSize: 16),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon),
+        labelStyle: TextStyle(color: labelColor, fontSize: 14),
+        floatingLabelStyle: TextStyle(
+            color: AppColors.primaryOrange,
+            fontWeight: FontWeight.w600),
+        prefixIcon: Icon(icon, color: labelColor),
         suffixIcon: suffixIcon,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: cardBg,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide:
+              const BorderSide(color: AppColors.primaryOrange, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 2),
+        ),
       ),
     );
   }

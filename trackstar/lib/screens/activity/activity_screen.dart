@@ -373,7 +373,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
     }
 
     // Start tracking
-    final started = await _locationService.startTracking();
+    final started = await _locationService.startTracking(activityType: type);
 
     if (started) {
       setState(() {
@@ -448,6 +448,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   Future<void> _saveActivity() async {
+    // Encode route points into a compact polyline string
+    final routePolyline = _locationService.encodeRoutePolyline();
+
     final activity = Activity(
       id: null,
       type: _activityType,
@@ -456,6 +459,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
       avgSpeed: _distance / (_duration / 3600), // km/h
       startTime: _startTime!,
       endTime: DateTime.now(),
+      routePolyline: routePolyline.isNotEmpty ? routePolyline : null,
       userId: _currentUserId,
     );
 

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import '../../utils/colors.dart';
+import 'package:latlong2/latlong.dart';
 import '../../services/database_service.dart';
+import '../../services/location_service.dart';
 import '../../models/activity.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -268,42 +271,166 @@ class _FeedScreenState extends State<FeedScreen> {
 
           const SizedBox(height: 16),
 
-          // Map placeholder
-          Container(
-            height: 120,
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: _getActivityColor(activity.type).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _getActivityColor(activity.type).withOpacity(0.3),
-                width: 2,
-              ),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.map_outlined,
-                    size: 40,
-                    color: _getActivityColor(activity.type).withOpacity(0.5),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Mapa rute',
-                    style: TextStyle(
-                      color: _getActivityColor(activity.type).withOpacity(0.7),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildRouteMap(activity),
 
           const SizedBox(height: 16),
         ],
+      ),
+    );
+  }
+
+    Widget _buildRouteMap(Activity activity) {
+    // Decode the polyline into LatLng points
+    final List<LatLng> routePoints;
+    if (activity.routePolyline != null &&
+        activity.routePolyline!.isNotEmpty) {
+      final decoded =
+          LocationService.decodePolyline(activity.routePolyline!);
+      routePoints = decoded.map((p) => LatLng(p[0], p[1])).toList();
+    } else {
+      routePoints = [];
+    }
+
+    if (routePoints.isEmpty) {
+      // No route data — show placeholder
+      return Container(
+        height: 120,
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: _getActivityColor(activity.type).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _getActivityColor(activity.type).withOpacity(0.3),
+            width: 2,
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.map_outlined,
+                  size: 40,
+                  color:
+                      _getActivityColor(activity.type).withOpacity(0.5)),
+              const SizedBox(height: 8),
+              Text(
+                'Nema podataka o ruti',
+                style: TextStyle(
+                  color:
+                      _getActivityColor(activity.type).withOpacity(0.7),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Calculate bounds to fit the entire route
+    double minLat = routePoints.first.latitude;
+    double maxLat = routePoints.first.latitude;
+    double minLng = routePoints.first.longitude;
+    double maxLng = routePoints.first.longitude;
+
+    for (final point in routePoints) {
+      if (point.latitude < minLat) minLat = point.latitude;
+      if (point.latitude > maxLat) maxLat = point.latitude;
+      if (point.longitude < minLng) minLng = point.longitude;
+      if (point.longitude > maxLng) maxLng = point.longitude;
+    }
+
+    final center = LatLng(
+      (minLat + maxLat) / 2,
+      (minLng + maxLng) / 2,
+    );
+
+    // Rough zoom calculation based on route spread
+    final latSpread = maxLat - minLat;
+    final lngSpread = maxLng - minLng;
+    final spread = latSpread > lngSpread ? latSpread : lngSpread;
+    double zoom;
+    if (spread < 0.002) {
+      zoom = 17.0;
+    } else if (spread < 0.01) {
+      zoom = 15.0;
+    } else if (spread < 0.05) {
+      zoom = 13.0;
+    } else if (spread < 0.2) {
+      zoom = 11.0;
+    } else {
+      zoom = 9.0;
+    }
+
+    return Container(
+      height: 160,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _getActivityColor(activity.type).withOpacity(0.3),
+          width: 2,
+        ),
+      ),
+      child: IgnorePointer(
+        // Make the mini-map non-interactive
+        child: FlutterMap(
+          options: MapOptions(
+            center: center,
+            zoom: zoom,
+            interactiveFlags: InteractiveFlag.none,
+          ),
+          children: [
+            TileLayer(
+              urlTemplate:
+                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.example.trackstar',
+            ),
+            PolylineLayer(
+              polylines: [
+                Polyline(
+                  points: routePoints,
+                  strokeWidth: 4.0,
+                  color: _getActivityColor(activity.type),
+                ),
+              ],
+            ),
+            // Start marker
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: routePoints.first,
+                  width: 24,
+                  height: 24,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(Icons.play_arrow,
+                        color: Colors.white, size: 14),
+                  ),
+                ),
+                Marker(
+                  point: routePoints.last,
+                  width: 24,
+                  height: 24,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(Icons.stop,
+                        color: Colors.white, size: 14),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

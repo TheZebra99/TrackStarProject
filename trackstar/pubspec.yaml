@@ -17,6 +17,7 @@ dependencies:
   permission_handler: ^11.2.0   # Permissions
   flutter_map: ^6.1.0           # OpenStreetMap rendering
   latlong2: ^0.9.0              # calculating latitude and longitude
+  image_picker: ^1.0.7          # Profile photo from camera/gallery
 
 dev_dependencies:
   flutter_test:

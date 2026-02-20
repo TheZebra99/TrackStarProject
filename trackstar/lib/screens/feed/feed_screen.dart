@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../../services/database_service.dart';
 import '../../services/location_service.dart';
 import '../../models/activity.dart';
+import '../profile/activity_history_screen.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({Key? key}) : super(key: key);
@@ -51,6 +52,24 @@ class _FeedScreenState extends State<FeedScreen> {
     }
   }
 
+  Future<void> _toggleFavorite(Activity activity) async {
+    if (activity.id == null) return;
+    final newVal = !activity.isFavorite;
+    await DatabaseService.instance.toggleFavorite(activity.id!, newVal);
+    setState(() {
+      final idx = _activities.indexWhere((a) => a.id == activity.id);
+      if (idx != -1) _activities[idx] = activity.copyWithFavorite(newVal);
+    });
+  }
+
+  void _openActivityHistory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => const ActivityHistoryScreen()),
+    ).then((_) => _loadActivities()); // refresh feed on return
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -61,14 +80,14 @@ class _FeedScreenState extends State<FeedScreen> {
         title: const Text(
           'TrackStar',
           style: TextStyle(
-            color: AppColors.textDark,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+              color: AppColors.textDark,
+              fontSize: 24,
+              fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: AppColors.textDark),
+            icon: const Icon(Icons.notifications_outlined,
+                color: AppColors.textDark),
             onPressed: () {
               // TODO: Navigate to notifications
             },
@@ -76,13 +95,12 @@ class _FeedScreenState extends State<FeedScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _loadActivities, // Refresh loads activities
+        onRefresh: _loadActivities,
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
-                  // Welcome card with dynamic stats
                   Container(
                     margin: const EdgeInsets.all(16),
                     padding: const EdgeInsets.all(20),
@@ -110,38 +128,31 @@ class _FeedScreenState extends State<FeedScreen> {
                         const Text(
                           'Dobro došli nazad! 👋',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
                         const Text(
                           'Spremni za novu avanturu?',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                          ),
+                          style:
+                              TextStyle(color: Colors.white, fontSize: 14),
                         ),
                         const SizedBox(height: 16),
                         Row(
                           children: [
                             _buildQuickStat(
-                              '$_totalActivities',
-                              'Aktivnosti',
-                            ), // dynamic count
+                                '$_totalActivities', 'Aktivnosti'),
                             const SizedBox(width: 20),
                             _buildQuickStat(
-                              '${_totalDistance.toStringAsFixed(1)} km',
-                              'Ukupno',
-                            ), // dynamic distance
+                                '${_totalDistance.toStringAsFixed(1)} km',
+                                'Ukupno'),
                           ],
                         ),
                       ],
                     ),
                   ),
 
-                  // Section header
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Row(
@@ -150,30 +161,30 @@ class _FeedScreenState extends State<FeedScreen> {
                         const Text(
                           'Ove nedelje',
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textDark,
-                          ),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textDark),
                         ),
                         if (_activities.isNotEmpty)
                           TextButton(
-                            onPressed: () {
-                              // TODO: View all activities
-                            },
+                            // vidi sve navigates to activity history
+                            onPressed: _openActivityHistory,
                             child: const Text(
                               'Vidi sve',
-                              style: TextStyle(color: AppColors.primaryOrange),
+                              style:
+                                  TextStyle(color: AppColors.primaryOrange),
                             ),
                           ),
                       ],
                     ),
                   ),
 
-                  // Activity cards or empty state
                   if (_activities.isEmpty)
                     _buildEmptyState()
                   else
-                    ..._activities.map((activity) => _buildActivityCard(activity)),
+                    ..._activities
+                        .map((a) => _buildActivityCard(a))
+                        .toList(),
                 ],
               ),
       ),
@@ -198,25 +209,21 @@ class _FeedScreenState extends State<FeedScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with activity type and time
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
             child: Row(
               children: [
-                // Activity icon
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: _getActivityColor(activity.type).withOpacity(0.1),
+                    color:
+                        _getActivityColor(activity.type).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
-                    activity.iconEmoji,
-                    style: const TextStyle(fontSize: 24),
-                  ),
+                  child: Text(activity.iconEmoji,
+                      style: const TextStyle(fontSize: 24)),
                 ),
                 const SizedBox(width: 12),
-                // Activity info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,55 +231,56 @@ class _FeedScreenState extends State<FeedScreen> {
                       Text(
                         activity.typeName,
                         style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textDark,
-                        ),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textDark),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _formatDate(activity.startTime),
                         style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGrey,
-                        ),
+                            fontSize: 12, color: AppColors.textGrey),
                       ),
                     ],
                   ),
+                ),
+                // Star button, tap to add/remove from Omiljene rute
+                IconButton(
+                  icon: Icon(
+                    activity.isFavorite ? Icons.star : Icons.star_border,
+                    color: activity.isFavorite
+                        ? Colors.amber
+                        : AppColors.textGrey,
+                  ),
+                  tooltip: activity.isFavorite
+                      ? 'Ukloni iz omiljenih'
+                      : 'Dodaj u omiljene rute',
+                  onPressed: () => _toggleFavorite(activity),
                 ),
               ],
             ),
           ),
 
-          // Stats row
+          // Stats
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
+                _buildStatColumn(activity.formattedDistance, 'Distanca',
+                    Icons.straighten_outlined),
+                _buildStatColumn(activity.formattedDuration, 'Vreme',
+                    Icons.timer_outlined),
                 _buildStatColumn(
-                  activity.formattedDistance,
-                  'Distanca',
-                  Icons.straighten_outlined,
-                ),
-                _buildStatColumn(
-                  activity.formattedDuration,
-                  'Vreme',
-                  Icons.timer_outlined,
-                ),
-                _buildStatColumn(
-                  '${activity.avgSpeed.toStringAsFixed(1)} km/h',
-                  'Brzina',
-                  Icons.speed_outlined,
-                ),
+                    '${activity.avgSpeed.toStringAsFixed(1)} km/h',
+                    'Brzina',
+                    Icons.speed_outlined),
               ],
             ),
           ),
 
           const SizedBox(height: 16),
-
           _buildRouteMap(activity),
-
           const SizedBox(height: 16),
         ],
       ),

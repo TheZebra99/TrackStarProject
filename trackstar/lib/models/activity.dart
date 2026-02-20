@@ -6,8 +6,9 @@ class Activity {
   final double avgSpeed; // km/h
   final DateTime startTime;
   final DateTime? endTime;
-  final String? routePolyline; // encoded route coordinates (optional for now)
+  final String? routePolyline;
   final int userId;
+  final bool isFavorite;
 
   Activity({
     this.id,
@@ -19,9 +20,9 @@ class Activity {
     this.endTime,
     this.routePolyline,
     required this.userId,
+    this.isFavorite = false, // defaults to false
   });
 
-  // Convert Activity to Map for database storage
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -33,10 +34,10 @@ class Activity {
       'endTime': endTime?.toIso8601String(),
       'routePolyline': routePolyline,
       'userId': userId,
+      'isFavorite': isFavorite ? 1 : 0, // SQLite stores bool as int
     };
   }
 
-  // Create Activity from database Map
   factory Activity.fromMap(Map<String, dynamic> map) {
     return Activity(
       id: map['id'] as int?,
@@ -45,57 +46,57 @@ class Activity {
       duration: map['duration'] as int,
       avgSpeed: map['avgSpeed'] as double,
       startTime: DateTime.parse(map['startTime'] as String),
-      endTime: map['endTime'] != null ? DateTime.parse(map['endTime'] as String) : null,
+      endTime: map['endTime'] != null
+          ? DateTime.parse(map['endTime'] as String)
+          : null,
       routePolyline: map['routePolyline'] as String?,
       userId: map['userId'] as int,
+      isFavorite: (map['isFavorite'] as int? ?? 0) == 1,
     );
   }
 
-  // Formatted distance for display
-  String get formattedDistance {
-    return '${distance.toStringAsFixed(2)} km';
+  /// Returns a copy of this activity with isFavorite
+  Activity copyWithFavorite(bool favorite) {
+    return Activity(
+      id: id,
+      type: type,
+      distance: distance,
+      duration: duration,
+      avgSpeed: avgSpeed,
+      startTime: startTime,
+      endTime: endTime,
+      routePolyline: routePolyline,
+      userId: userId,
+      isFavorite: favorite,
+    );
   }
 
-  // Formatted duration for display
+  String get formattedDistance => '${distance.toStringAsFixed(2)} km';
+
   String get formattedDuration {
     final hours = duration ~/ 3600;
     final minutes = (duration % 3600) ~/ 60;
     final seconds = duration % 60;
-    
-    if (hours > 0) {
-      return '${hours}h ${minutes}m ${seconds}s';
-    } else if (minutes > 0) {
-      return '${minutes}m ${seconds}s';
-    } else {
-      return '${seconds}s';
-    }
+    if (hours > 0) return '${hours}h ${minutes}m ${seconds}s';
+    if (minutes > 0) return '${minutes}m ${seconds}s';
+    return '${seconds}s';
   }
 
-  // Get activity type display name
   String get typeName {
     switch (type) {
-      case 'walk':
-        return 'Šetnja';
-      case 'run':
-        return 'Trčanje';
-      case 'cycle':
-        return 'Vožnja';
-      default:
-        return type;
+      case 'walk':  return 'Šetnja';
+      case 'run':   return 'Trčanje';
+      case 'cycle': return 'Vožnja';
+      default:      return type;
     }
   }
 
-  // Get activity icon
   String get iconEmoji {
     switch (type) {
-      case 'walk':
-        return '🚶';
-      case 'run':
-        return '🏃';
-      case 'cycle':
-        return '🚴';
-      default:
-        return '🏃';
+      case 'walk':  return '🚶';
+      case 'run':   return '🏃';
+      case 'cycle': return '🚴';
+      default:      return '🏃';
     }
   }
 }

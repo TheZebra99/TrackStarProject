@@ -18,55 +18,56 @@ class DatabaseService {
   }
 
   Future<Database> _initDB() async {
-    // Open the database and store the reference
-    final database = openDatabase(
+    return openDatabase(
       join(await getDatabasesPath(), 'main_database.db'),
-      // When the database is first created, create tables
       onCreate: (db, version) async {
-        // Create users table
         await db.execute(
           'CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT, email TEXT, password TEXT)',
         );
-        
-        // Create activities table
-        await db.execute(
-          '''CREATE TABLE activities(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            type TEXT NOT NULL,
-            distance REAL NOT NULL,
-            duration INTEGER NOT NULL,
-            avgSpeed REAL NOT NULL,
-            startTime TEXT NOT NULL,
-            endTime TEXT,
+        await db.execute('''
+          CREATE TABLE activities(
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            type        TEXT    NOT NULL,
+            distance    REAL    NOT NULL,
+            duration    INTEGER NOT NULL,
+            avgSpeed    REAL    NOT NULL,
+            startTime   TEXT    NOT NULL,
+            endTime     TEXT,
             routePolyline TEXT,
-            userId INTEGER NOT NULL,
+            userId      INTEGER NOT NULL,
+            isFavorite  INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
-          )''',
-        );
+          )
+        ''');
       },
-      version: 2,
-      // Handle database upgrades
+      // Migrations
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
-          // Add activities table if upgrading from version 1
-          await db.execute(
-            '''CREATE TABLE activities(
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              type TEXT NOT NULL,
-              distance REAL NOT NULL,
-              duration INTEGER NOT NULL,
-              avgSpeed REAL NOT NULL,
-              startTime TEXT NOT NULL,
-              endTime TEXT,
+          await db.execute('''
+            CREATE TABLE activities(
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              type        TEXT    NOT NULL,
+              distance    REAL    NOT NULL,
+              duration    INTEGER NOT NULL,
+              avgSpeed    REAL    NOT NULL,
+              startTime   TEXT    NOT NULL,
+              endTime     TEXT,
               routePolyline TEXT,
-              userId INTEGER NOT NULL,
+              userId      INTEGER NOT NULL,
+              isFavorite  INTEGER NOT NULL DEFAULT 0,
               FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
-            )''',
+            )
+          ''');
+        }
+        if (oldVersion < 3) {
+          // Add isFavorite column to existing activities table (v2 → v3)
+          await db.execute(
+            'ALTER TABLE activities ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0',
           );
         }
       },
+      version: 3, // bumped from 2 to 3 to trigger the isFavorite migration
     );
-    return database;
   }
 
   Future<void> insertUser(User user) async {
@@ -94,7 +95,7 @@ class DatabaseService {
         } in userMaps)
         User(
           id: id, 
-          name: name, 
+          name: name,
           email: email, 
           password: password
         ),
@@ -169,7 +170,7 @@ class DatabaseService {
     return activityMaps.map((map) => Activity.fromMap(map)).toList();
   }
 
-  /// Get activities from the last 7 days for a specific user
+  // Get activities from the last 7 days for a specific user
   Future<List<Activity>> getActivitiesThisWeek(int userId) async {
     final db = await database;
     final now = DateTime.now();
@@ -183,6 +184,29 @@ class DatabaseService {
     );
 
     return activityMaps.map((map) => Activity.fromMap(map)).toList();
+  }
+
+  // Returns all activities the user has starred (isFavorite = 1)
+  Future<List<Activity>> getFavoriteActivities(int userId) async {
+    final db = await database;
+    final maps = await db.query(
+      'activities',
+      where: 'userId = ? AND isFavorite = 1',
+      whereArgs: [userId],
+      orderBy: 'startTime DESC',
+    );
+    return maps.map((m) => Activity.fromMap(m)).toList();
+  }
+
+  // Toggles the favourite flag for a given activity
+  Future<void> toggleFavorite(int activityId, bool isFavorite) async {
+    final db = await database;
+    await db.update(
+      'activities',
+      {'isFavorite': isFavorite ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [activityId],
+    );
   }
 
   Future<Map<String, dynamic>> getUserStats(int userId) async {

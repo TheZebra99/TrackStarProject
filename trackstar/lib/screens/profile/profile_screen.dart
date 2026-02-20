@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:trackstar/screens/profile/activity_history_screen.dart';
+import 'package:trackstar/screens/profile/edit_profile_screen.dart';
+import 'package:trackstar/screens/profile/favorite_routes_screen.dart';
 import 'package:trackstar/screens/profile/settings_panel.dart';
 import '../../utils/colors.dart';
 import '../auth/login_screen.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import '../../services/database_service.dart';
+import '../../models/achievement.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -156,10 +160,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text(
           'Profil',
           style: TextStyle(
-            color: AppColors.textDark,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+              color: AppColors.textDark,
+              fontSize: 20,
+              fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
@@ -175,13 +178,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             children: [
-              // Profile header
               Container(
                 color: Colors.white,
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
-                    // Profile picture with edit button
                     Stack(
                       children: [
                         GestureDetector(
@@ -193,26 +194,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               shape: BoxShape.circle,
                               color: AppColors.primaryOrange.withOpacity(0.1),
                               border: Border.all(
-                                color: AppColors.primaryOrange,
-                                width: 3,
-                              ),
+                                  color: AppColors.primaryOrange, width: 3),
                               image: _profileImage != null
                                   ? DecorationImage(
                                       image: FileImage(_profileImage!),
-                                      fit: BoxFit.cover,
-                                    )
+                                      fit: BoxFit.cover)
                                   : null,
                             ),
                             child: _profileImage == null
-                                ? const Icon(
-                                    Icons.person,
-                                    size: 50,
-                                    color: AppColors.primaryOrange,
-                                  )
+                                ? const Icon(Icons.person,
+                                    size: 50, color: AppColors.primaryOrange)
                                 : null,
                           ),
                         ),
-                        // Edit mini-button
                         Positioned(
                           bottom: 0,
                           right: 0,
@@ -226,127 +220,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 shape: BoxShape.circle,
                                 border:
                                     Border.all(color: Colors.white, width: 2),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.15),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
                               ),
-                              child: const Icon(
-                                Icons.edit,
-                                size: 16,
-                                color: Colors.white,
-                              ),
+                              child: const Icon(Icons.edit,
+                                  size: 16, color: Colors.white),
                             ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Korisnik',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                      ),
-                    ),
+                    const Text('Korisnik',
+                        style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textDark)),
                     const SizedBox(height: 4),
-                    Text(
-                      'user@example.com',
-                      style: TextStyle(fontSize: 14, color: AppColors.textGrey),
-                    ),
+                    Text('user@example.com',
+                        style:
+                            TextStyle(fontSize: 14, color: AppColors.textGrey)),
                     const SizedBox(height: 24),
-                    // Dynamic stats row
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         _buildStatColumn('$_totalActivities', 'Aktivnosti'),
                         Container(
-                          height: 40,
-                          width: 1,
-                          color: AppColors.textGrey.withOpacity(0.2),
-                        ),
+                            height: 40,
+                            width: 1,
+                            color: AppColors.textGrey.withOpacity(0.2)),
                         _buildStatColumn(
-                          '${_totalDistance.toStringAsFixed(1)} km',
-                          'Ukupna distanca',
-                        ),
+                            '${_totalDistance.toStringAsFixed(1)} km',
+                            'Ukupna distanca'),
                         Container(
-                          height: 40,
-                          width: 1,
-                          color: AppColors.textGrey.withOpacity(0.2),
-                        ),
+                            height: 40,
+                            width: 1,
+                            color: AppColors.textGrey.withOpacity(0.2)),
                         _buildStatColumn(
-                          _formatTotalDuration(_totalDuration),
-                          'Vreme',
-                        ),
+                            _formatTotalDuration(_totalDuration), 'Vreme'),
                       ],
                     ),
                   ],
                 ),
               ),
-
               const SizedBox(height: 16),
-
-              // Achievements section
               Container(
                 color: Colors.white,
+                width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Text(
-                      'Dostignuća',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                      ),
-                    ),
+                    const Text('Achievements',
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textDark)),
                     const SizedBox(height: 16),
                     _buildAchievements(),
                   ],
                 ),
               ),
-
               const SizedBox(height: 16),
-
-              // Menu items
               Container(
                 color: Colors.white,
                 child: Column(
                   children: [
+                    //Uredi profil navigates to EditProfileScreen
                     _buildSettingsItem(
                       icon: Icons.edit_outlined,
                       title: 'Uredi profil',
-                      onTap: () {
-                        // TODO: navigate to edit profile
-                      },
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const EditProfileScreen()),
+                      ),
                     ),
                     _buildDivider(),
+                    // Istorija aktivnosti navigates to ActivityHistoryScreen
                     _buildSettingsItem(
                       icon: Icons.history,
                       title: 'Istorija aktivnosti',
-                      onTap: () {
-                        // TODO: navigate to activity history
-                      },
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const ActivityHistoryScreen()),
+                      ).then((_) => _loadStats()),
                     ),
                     _buildDivider(),
+                    //Omiljene rute navigates to FavoriteRoutesScreen
                     _buildSettingsItem(
                       icon: Icons.star_outline,
                       title: 'Omiljene rute',
-                      onTap: () {
-                        // TODO: navigate to favorite routes
-                      },
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const FavoriteRoutesScreen()),
+                      ),
                     ),
                     _buildDivider(),
                     _buildSettingsItem(
                       icon: Icons.notifications_outlined,
                       title: 'Obaveštenja',
                       onTap: () {
-                        // TODO: navigate to notifications settings
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Dolazi uskoro'),
+                              duration: Duration(seconds: 1)),
+                        );
                       },
                     ),
                     _buildDivider(),
@@ -354,7 +333,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.help_outline,
                       title: 'Pomoć i podrška',
                       onTap: () {
-                        // TODO: navigate to help
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Dolazi uskoro'),
+                              duration: Duration(seconds: 1)),
+                        );
                       },
                     ),
                     _buildDivider(),
@@ -368,7 +351,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 32),
             ],
           ),
@@ -378,80 +360,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildAchievements() {
-    final achievements = <Map<String, dynamic>>[
-      {
-        'icon': Icons.directions_walk,
-        'title': 'Prva šetnja',
-        'desc': 'Završite prvu aktivnost',
-        'unlocked': _totalActivities >= 1,
-      },
-      {
-        'icon': Icons.local_fire_department,
-        'title': '5 aktivnosti',
-        'desc': 'Završite 5 aktivnosti',
-        'unlocked': _totalActivities >= 5,
-      },
-      {
-        'icon': Icons.terrain,
-        'title': '10 km',
-        'desc': 'Ukupno pređite 10 km',
-        'unlocked': _totalDistance >= 10.0,
-      },
-      {
-        'icon': Icons.emoji_events,
-        'title': 'Maraton',
-        'desc': 'Ukupno pređite 42 km',
-        'unlocked': _totalDistance >= 42.0,
-      },
-    ];
+    final unlockedList = allAchievements
+        .where((a) => a.isUnlocked(_totalActivities, _totalDistance))
+        .toList();
 
-    final unlocked = achievements.where((a) => a['unlocked'] == true).length;
-
-    if (unlocked == 0) {
-      return Center(
-        child: Column(
-          children: [
-            Icon(Icons.emoji_events_outlined,
-                size: 60, color: AppColors.textGrey.withOpacity(0.3)),
-            const SizedBox(height: 8),
-            Text('Nema dostignuća',
-                style: TextStyle(fontSize: 14, color: AppColors.textGrey)),
-          ],
-        ),
+    if (unlockedList.isEmpty) {
+      return Column(
+        children: [
+          Icon(Icons.emoji_events_outlined,
+              size: 60, color: AppColors.textGrey.withOpacity(0.3)),
+          const SizedBox(height: 8),
+          Text('Nema dostignuća',
+              style: TextStyle(fontSize: 14, color: AppColors.textGrey)),
+        ],
       );
     }
 
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: achievements
-          .where((a) => a['unlocked'] == true)
-          .map((a) => _buildAchievementBadge(
-                icon: a['icon'],
-                title: a['title'],
-              ))
-          .toList(),
+    return Center(
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 16,
+        alignment: WrapAlignment.center,
+        children: unlockedList
+            .map((a) => _buildAchievementBadge(
+                  icon: a.icon,
+                  title: a.title,
+                  description: a.description,
+                ))
+            .toList(),
+      ),
     );
   }
 
-  Widget _buildAchievementBadge(
-      {required IconData icon, required String title}) {
-    return Column(
-      children: [
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: AppColors.primaryOrange.withOpacity(0.1),
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.primaryOrange.withOpacity(0.5)),
-          ),
-          child: Icon(icon, color: AppColors.primaryOrange, size: 28),
+  Widget _buildAchievementBadge({
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
+    return GestureDetector(
+      onTap: () => showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Row(children: [
+            Icon(icon, color: AppColors.primaryOrange),
+            const SizedBox(width: 8),
+            Text(title),
+          ]),
+          content: Text(description),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            )
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(title,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-      ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppColors.primaryOrange.withOpacity(0.1),
+              shape: BoxShape.circle,
+              border:
+                  Border.all(color: AppColors.primaryOrange.withOpacity(0.5)),
+            ),
+            child: Icon(icon, color: AppColors.primaryOrange, size: 28),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: 60,
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -464,8 +451,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 fontWeight: FontWeight.bold,
                 color: AppColors.textDark)),
         const SizedBox(height: 4),
-        Text(label,
-            style: TextStyle(fontSize: 12, color: AppColors.textGrey)),
+        Text(label, style: TextStyle(fontSize: 12, color: AppColors.textGrey)),
       ],
     );
   }
@@ -480,10 +466,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return ListTile(
       leading: Icon(icon, color: iconColor ?? AppColors.textDark),
       title: Text(title,
-          style: TextStyle(
-              fontSize: 16, color: titleColor ?? AppColors.textDark)),
-      trailing: Icon(Icons.arrow_forward_ios,
-          size: 16, color: AppColors.textGrey),
+          style:
+              TextStyle(fontSize: 16, color: titleColor ?? AppColors.textDark)),
+      trailing:
+          Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textGrey),
       onTap: onTap,
     );
   }

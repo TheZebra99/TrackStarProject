@@ -4,6 +4,8 @@ import '../../widgets/custom_button.dart';
 import '../main_navigation.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -19,6 +21,10 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordVisible = false;
   bool _isLoading = false;
 
+  final _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+  );
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -29,21 +35,61 @@ class _LoginScreenState extends State<LoginScreen> {
   void _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      
-      // Implementirati pravu autentifikaciju kasnije...
+      // TODO: replace with real auth
       await Future.delayed(const Duration(seconds: 2));
-      
       setState(() => _isLoading = false);
-      
-      if (mounted) {
-        // Navigate to main navigation (feed page)
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const MainNavigation(), // navigacija na feed
-          ),
-        );
-      }
+      if (mounted) _goToMain();
     }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    try {
+      setState(() => _isLoading = true);
+      final account = await _googleSignIn.signIn();
+      if (account == null) {
+        // User cancelled the sign-in flow
+        setState(() => _isLoading = false);
+        return;
+      }
+      if (mounted) _goToMain();
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showError('Google prijava neuspešna: $e');
+    }
+  }
+
+  Future<void> _handleFacebookSignIn() async {
+    try {
+      setState(() => _isLoading = true);
+      final result = await FacebookAuth.instance.login(
+        permissions: ['email', 'public_profile'],
+      );
+      if (result.status == LoginStatus.success) {
+        final userData = await FacebookAuth.instance.getUserData();
+        if (mounted) _goToMain();
+      } else {
+        setState(() => _isLoading = false);
+        if (result.status != LoginStatus.cancelled) {
+          _showError('Facebook prijava neuspešna: ${result.message}');
+        }
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showError('Facebook prijava neuspešna: $e');
+    }
+  }
+
+  void _goToMain() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const MainNavigation()),
+    );
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   @override
@@ -58,8 +104,8 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 40),
-                
-                // Logo placeholder...
+
+                // Logo
                 Center(
                   child: Container(
                     width: 100,
@@ -68,37 +114,30 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: AppColors.primaryOrange.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Icon(
-                      Icons.directions_run,
-                      size: 50,
-                      color: AppColors.primaryOrange,
-                    ),
+                    child: const Icon(Icons.directions_run,
+                        size: 50, color: AppColors.primaryOrange),
                   ),
                 ),
-                
+
                 const SizedBox(height: 40),
-                
-                // Title...
+
                 const Text(
                   'Dobrodošli nazad!',
                   style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   'Prijavite se da nastavite',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.textGrey,
-                  ),
+                  style:
+                      TextStyle(fontSize: 16, color: AppColors.textGrey),
                 ),
-                
+
                 const SizedBox(height: 40),
-                
-                // Email field...
+
+                // Email
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -107,25 +146,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     hintText: 'vasa.email@primer.com',
                     prefixIcon: const Icon(Icons.email_outlined),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        borderRadius: BorderRadius.circular(12)),
                     filled: true,
                     fillColor: AppColors.backgroundLight,
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Unesite email';
-                    }
-                    if (!value.contains('@')) {
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Unesite email';
+                    if (!v.contains('@'))
                       return 'Unesite validan email';
-                    }
                     return null;
                   },
                 ),
-                
+
                 const SizedBox(height: 16),
-                
-                // Password field
+
+                // Password
                 TextFormField(
                   controller: _passwordController,
                   obscureText: !_isPasswordVisible,
@@ -134,139 +169,121 @@ class _LoginScreenState extends State<LoginScreen> {
                     hintText: 'Unesite lozinku',
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
+                      icon: Icon(_isPasswordVisible
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined),
+                      onPressed: () => setState(
+                          () => _isPasswordVisible = !_isPasswordVisible),
                     ),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        borderRadius: BorderRadius.circular(12)),
                     filled: true,
                     fillColor: AppColors.backgroundLight,
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Unesite lozinku';
-                    }
-                    if (value.length < 6) {
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Unesite lozinku';
+                    if (v.length < 6)
                       return 'Lozinka mora imati najmanje 6 karaktera';
-                    }
                     return null;
                   },
                 ),
-                
+
                 const SizedBox(height: 12),
-                
-                // Forgot password link
+
+                // Forgot password
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ForgotPasswordScreen(),
-                        ),
-                      );
-                    },
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const ForgotPasswordScreen()),
+                    ),
                     child: const Text(
                       'Zaboravili ste lozinku?',
                       style: TextStyle(
-                        color: AppColors.primaryOrange,
-                        fontWeight: FontWeight.w600,
-                      ),
+                          color: AppColors.primaryOrange,
+                          fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
-                // Login button
+
                 CustomButton(
                   text: 'Prijavite se',
                   onPressed: _handleLogin,
                   isLoading: _isLoading,
                 ),
-                
+
                 const SizedBox(height: 24),
-                
-                // Divider with "or"
+
+                // Divider
                 Row(
                   children: [
-                    Expanded(child: Divider(color: AppColors.textGrey.withOpacity(0.3))),
+                    Expanded(
+                        child: Divider(
+                            color: AppColors.textGrey.withOpacity(0.3))),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'ili',
-                        style: TextStyle(
-                          color: AppColors.textGrey,
-                          fontSize: 14,
-                        ),
-                      ),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('ili',
+                          style: TextStyle(
+                              color: AppColors.textGrey, fontSize: 14)),
                     ),
-                    Expanded(child: Divider(color: AppColors.textGrey.withOpacity(0.3))),
+                    Expanded(
+                        child: Divider(
+                            color: AppColors.textGrey.withOpacity(0.3))),
                   ],
                 ),
-                
+
                 const SizedBox(height: 24),
-                
-                // Social login buttons
+
                 Row(
                   children: [
                     Expanded(
                       child: _buildSocialButton(
-                        icon: Icons.g_mobiledata,
+                        // Google button
+                        iconWidget: const _GoogleIcon(),
                         label: 'Google',
-                        onPressed: () {
-                          // Google sign in...
-                        },
+                        onPressed:
+                            _isLoading ? null : _handleGoogleSignIn,
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: _buildSocialButton(
-                        icon: Icons.apple,
-                        label: 'Apple',
-                        onPressed: () {
-                          // Apple sign in...
-                        },
+                        // Facebook button
+                        iconWidget:
+                            const Icon(Icons.facebook, color: Color(0xFF1877F2)),
+                        label: 'Facebook',
+                        onPressed:
+                            _isLoading ? null : _handleFacebookSignIn,
                       ),
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 32),
-                
+
                 // Sign up link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'Nemate nalog? ',
-                      style: TextStyle(color: AppColors.textGrey),
-                    ),
+                    const Text('Nemate nalog? ',
+                        style: TextStyle(color: AppColors.textGrey)),
                     TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SignupScreen(),
-                          ),
-                        );
-                      },
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const SignupScreen()),
+                      ),
                       child: const Text(
                         'Registrujte se',
                         style: TextStyle(
-                          color: AppColors.primaryOrange,
-                          fontWeight: FontWeight.w600,
-                        ),
+                            color: AppColors.primaryOrange,
+                            fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -280,32 +297,45 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildSocialButton({
-    required IconData icon,
+    required Widget iconWidget,
     required String label,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
   }) {
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 12),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+            borderRadius: BorderRadius.circular(12)),
         side: BorderSide(color: AppColors.textGrey.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: AppColors.textDark),
+          iconWidget,
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          Text(label,
+              style: const TextStyle(
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w600)),
         ],
+      ),
+    );
+  }
+}
+
+// Small helper widget
+class _GoogleIcon extends StatelessWidget {
+  const _GoogleIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text(
+      'G',
+      style: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFF4285F4), // Google blue
       ),
     );
   }

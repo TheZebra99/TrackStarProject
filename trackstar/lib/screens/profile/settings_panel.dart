@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
+import '../../utils/app_settings.dart';
 
 class SettingsPanel extends StatefulWidget {
   const SettingsPanel({Key? key}) : super(key: key);
@@ -9,17 +10,34 @@ class SettingsPanel extends StatefulWidget {
 }
 
 class _SettingsPanelState extends State<SettingsPanel> {
-  bool _darkMode = false;
-  bool _largeText = false;
-  bool _highContrast = false;
+  // Read initial values from the singleton
+  final _settings = AppSettings.instance;
+
+  bool get _darkMode => _settings.darkMode;
+  bool get _largeText => _settings.largeText;
+  bool get _highContrast => _settings.highContrast;
+
+  ScaffoldMessengerState? _messenger;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _messenger = ScaffoldMessenger.of(context);
+  }
+
+  void _showSnack(String message) {
+    _messenger?.showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 1)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.45,
-      minChildSize: 0.3,
-      maxChildSize: 0.6,
-      builder: (context, scrollController) {
+      initialChildSize: 0.48,
+      minChildSize: 0.35,
+      maxChildSize: 0.65,
+      builder: (sheetContext, scrollController) {
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -27,9 +45,9 @@ class _SettingsPanelState extends State<SettingsPanel> {
           ),
           child: ListView(
             controller: scrollController,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             children: [
-              // Handle bar
               Center(
                 child: Container(
                   width: 40,
@@ -45,69 +63,52 @@ class _SettingsPanelState extends State<SettingsPanel> {
               const Text(
                 'Podešavanja',
                 style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
-                ),
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark),
               ),
               const SizedBox(height: 24),
 
-              // ── Night mode ──
               const Text(
                 'Izgled',
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textGrey,
-                ),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textGrey),
               ),
               const SizedBox(height: 8),
               _buildToggleTile(
                 icon: Icons.dark_mode_outlined,
-                title: 'Noćni režim',
+                title: 'Night mode',
                 subtitle: 'Tamna tema za interfejs',
                 value: _darkMode,
                 onChanged: (val) {
-                  setState(() => _darkMode = val);
-                  // TODO: hook into ThemeNotifier
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(val
-                          ? 'Noćni režim uključen'
-                          : 'Noćni režim isključen'),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
+                  setState(() => _settings.darkMode = val);
+                  _showSnack(val
+                      ? 'Night mode uključen'
+                      : 'Night mode isključen');
                 },
               ),
 
               const SizedBox(height: 20),
 
-              // ── Accessibility ──
               const Text(
                 'Pristupačnost',
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textGrey,
-                ),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textGrey),
               ),
               const SizedBox(height: 8),
               _buildToggleTile(
                 icon: Icons.text_increase,
                 title: 'Veći tekst',
-                subtitle: 'Povećajte veličinu fonta',
+                subtitle: 'Povećajte veličinu fonta (120%)',
                 value: _largeText,
                 onChanged: (val) {
-                  setState(() => _largeText = val);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(val
-                          ? 'Veći tekst uključen'
-                          : 'Veći tekst isključen'),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
+                  setState(() => _settings.largeText = val);
+                  _showSnack(
+                      val ? 'Veći tekst uključen' : 'Veći tekst isključen');
                 },
               ),
               const SizedBox(height: 8),
@@ -117,15 +118,10 @@ class _SettingsPanelState extends State<SettingsPanel> {
                 subtitle: 'Pojačan kontrast boja',
                 value: _highContrast,
                 onChanged: (val) {
-                  setState(() => _highContrast = val);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(val
-                          ? 'Visoki kontrast uključen'
-                          : 'Visoki kontrast isključen'),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
+                  setState(() => _settings.highContrast = val);
+                  _showSnack(val
+                      ? 'Visoki kontrast uključen'
+                      : 'Visoki kontrast isključen');
                 },
               ),
             ],

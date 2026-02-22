@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:trackstar/services/tracking_notification_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'utils/colors.dart';
 import 'utils/app_settings.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  TrackingNotificationService.instance
+      .init(); // for top-panel foreground notifications
   runApp(const TrackStarApp());
 }
 

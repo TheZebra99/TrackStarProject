@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 
+typedef GpsLostCallback = void Function();
+typedef GpsRestoredCallback = void Function();
+typedef AutoSaveCallback = void Function();
+
 // LocationService - Manages GPS tracking for activities
 class LocationService {
   // Singleton instance
@@ -15,17 +19,32 @@ class LocationService {
   bool _isTracking = false;
   String _activityType = 'walk';
 
+  // GPS-loss detection
+  static const int _gpsTimeoutSeconds = 15; // no update in 15 s = lost
+  static const int _autoSaveIntervalSec = 30; // auto-save every 30 s
+
+  DateTime? _lastPositionTime;
+  bool _gpsLost = false;
+  Timer? _gpsWatchdog;
+  Timer? _autoSaveTimer;
+
+  GpsLostCallback?     onGpsLost;
+  GpsRestoredCallback? onGpsRestored;
+  AutoSaveCallback?    onAutoSave;
+
+  bool get isGpsLost => _gpsLost;
+
   // public getters
   double get totalDistance => _totalDistance;
   List<Position> get positions => _positions;
   bool get isTracking => _isTracking;
   String get activityType => _activityType;
-  
+
   int get duration {
     if (_startTime == null) return 0;
     return DateTime.now().difference(_startTime!).inSeconds;
   }
-  
+
   double get currentSpeed {
     if (_positions.isEmpty) return 0.0;
     // Speed in m/s, convert to km/h
@@ -44,11 +63,11 @@ class LocationService {
   int _getDistanceFilter() {
     switch (_activityType) {
       case 'walk':
-        return 5;   // 5 m — captures slow, short movements
+        return 5;
       case 'run':
-        return 10;  // 10 m — balanced for jogging pace
+        return 10;
       case 'cycle':
-        return 15;  // 15 m — avoids noisy updates at speed
+        return 15;
       default:
         return 10;
     }
@@ -102,7 +121,7 @@ class LocationService {
         return false;
       }
     }
-    
+
     if (permission == LocationPermission.deniedForever) {
       print('Location permissions are permanently denied');
       return false;
@@ -126,24 +145,25 @@ class LocationService {
     _startTime = DateTime.now();
     _isTracking = true;
     _activityType = activityType;
+    _lastPositionTime = DateTime.now();
+    _gpsLost = false;
+
+    _startGpsWatchdog();
+    _startAutoSaveTimer();
 
     final LocationSettings locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
       distanceFilter: _getDistanceFilter(),
     );
 
-    print('Distance filter: ${_getDistanceFilter()}m');
-    print('Max speed cap: ${_getMaxRealisticSpeed()} km/h');
-    print('Min segment: ${_getMinSegmentDistance()}m');
-
     _positionStreamSubscription = Geolocator.getPositionStream(
       locationSettings: locationSettings,
     ).listen(
-      (Position position) {
-        _onPositionUpdate(position);
-      },
+      _onPositionUpdate,
       onError: (error) {
         print('Position stream error: $error');
+        // Treat a stream error as GPS loss
+        _handleGpsLost();
       },
     );
 
@@ -151,10 +171,71 @@ class LocationService {
     return true;
   }
 
+  Future<void> stopTracking() async {
+    print('Stopping GPS tracking...');
+
+    _gpsWatchdog?.cancel();
+    _autoSaveTimer?.cancel();
+    await _positionStreamSubscription?.cancel();
+    _positionStreamSubscription = null;
+    _isTracking = false;
+    _gpsLost = false;
+
+    print('GPS tracking stopped. '
+        'Total: ${_totalDistance.toStringAsFixed(2)} km | '
+        '${duration}s | ${_positions.length} pts');
+  }
+
+  void _startGpsWatchdog() {
+    _gpsWatchdog?.cancel();
+    // Check every 5 seconds if a fresh position arrived recently
+    _gpsWatchdog = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!_isTracking) return;
+      final secondsSinceLast = _lastPositionTime == null
+          ? _gpsTimeoutSeconds + 1
+          : DateTime.now().difference(_lastPositionTime!).inSeconds;
+
+      if (secondsSinceLast >= _gpsTimeoutSeconds && !_gpsLost) {
+        _handleGpsLost();
+      }
+    });
+  }
+
+  void _handleGpsLost() {
+    if (_gpsLost) return;
+    _gpsLost = true;
+    print('GPS signal lost');
+    onGpsLost?.call();
+  }
+
+  void _handleGpsRestored() {
+    if (!_gpsLost) return;
+    _gpsLost = false;
+    print('GPS signal restored');
+    onGpsRestored?.call();
+  }
+
+  void _startAutoSaveTimer() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer.periodic(
+      const Duration(seconds: _autoSaveIntervalSec),
+      (_) {
+        if (!_isTracking) return;
+        print('Auto-save checkpoint triggered');
+        onAutoSave?.call();
+      },
+    );
+  }
+
   // Handle position updates from GPS, added 3D calculation that includes height changes
   void _onPositionUpdate(Position position) {
     print('Position update: ${position.latitude}, ${position.longitude}');
     print('Altitude: ${position.altitude.toStringAsFixed(1)}m');
+
+    _lastPositionTime = DateTime.now();
+
+    // GPS restored?
+    if (_gpsLost) _handleGpsRestored();
 
     if (_positions.isNotEmpty) {
       final lastPosition = _positions.last;
@@ -177,12 +258,13 @@ class LocationService {
       if (_positions.length >= 2) {
         final timeDeltaSeconds = position.timestamp
                 .difference(lastPosition.timestamp)
-                .inMilliseconds / 1000.0;
+                .inMilliseconds /
+            1000.0;
         if (timeDeltaSeconds > 0) {
-          final segmentSpeedKmh =
-              (horizontalDistance / timeDeltaSeconds) * 3.6;
+          final segmentSpeedKmh = (horizontalDistance / timeDeltaSeconds) * 3.6;
           if (segmentSpeedKmh > _getMaxRealisticSpeed()) {
-            print('Skipping: segment speed ${segmentSpeedKmh.toStringAsFixed(1)} km/h '
+            print(
+                'Skipping: segment speed ${segmentSpeedKmh.toStringAsFixed(1)} km/h '
                 '> max ${_getMaxRealisticSpeed()} km/h');
             return;
           }
@@ -211,24 +293,11 @@ class LocationService {
     _positions.add(position);
   }
 
-  Future<void> stopTracking() async {
-    print('Stopping GPS tracking...');
-    
-    await _positionStreamSubscription?.cancel();
-    _positionStreamSubscription = null;
-    _isTracking = false;
-    
-    print('GPS tracking stopped');
-    print('Total distance: ${_totalDistance.toStringAsFixed(2)}km');
-    print('Duration: ${duration}s');
-    print('Positions recorded: ${_positions.length}');
-  }
-
   // Get current position once, without starting tracking
   Future<Position?> getCurrentPosition() async {
     try {
       print('Getting current position...');
-      
+
       final hasPermission = await checkPermissions();
       if (!hasPermission) {
         print('No permission to get position');
@@ -238,7 +307,7 @@ class LocationService {
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      
+
       print('Current position: ${position.latitude}, ${position.longitude}');
       return position;
     } catch (e) {
@@ -318,10 +387,13 @@ class LocationService {
     _positions.clear();
     _totalDistance = 0.0;
     _startTime = null;
+    _gpsLost = false;
     print('Tracking data reset');
   }
 
   void dispose() {
+    _gpsWatchdog?.cancel();
+    _autoSaveTimer?.cancel();
     _positionStreamSubscription?.cancel();
     _positionStreamSubscription = null;
     _isTracking = false;

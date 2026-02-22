@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../utils/colors.dart';
 import '../../utils/app_settings.dart';
 
@@ -11,8 +12,11 @@ import 'package:trackstar/services/user_session.dart';
 import 'package:trackstar/models/activity.dart';
 import 'package:trackstar/models/achievement.dart';
 import 'package:trackstar/screens/profile/achievements_screen.dart';
+import '../../services/tracking_notification_service.dart';
 import 'dart:async';
 import 'package:trackstar/widgets/achievement_banner.dart';
+import 'dart:io';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({Key? key}) : super(key: key);
@@ -24,6 +28,8 @@ class ActivityScreen extends StatefulWidget {
 class _ActivityScreenState extends State<ActivityScreen> {
   final MapController _mapController = MapController();
   final LocationService _locationService = LocationService.instance;
+  final TrackingNotificationService _notifService =
+      TrackingNotificationService.instance;
 
   bool _isTracking = false;
   bool _isPaused = false;
@@ -41,16 +47,66 @@ class _ActivityScreenState extends State<ActivityScreen> {
   bool _hasPermission = false;
   bool _isLoadingMap = true;
 
+  bool _gpsLost = false;
+  bool _internetLost = false;
+
   // Night mode helpers
   bool get _isDark => AppSettings.instance.darkMode;
   Color get _cardBg => _isDark ? const Color(0xFF1E1E1E) : Colors.white;
+  Color get _sheetBg => _isDark ? const Color(0xFF1E1E1E) : Colors.white;
   Color get _textPrimary => _isDark ? Colors.white : AppColors.textDark;
   Color get _textSecondary => _isDark ? Colors.white60 : AppColors.textGrey;
+  Color get _tileBorder =>
+      _isDark ? Colors.white12 : AppColors.textGrey.withOpacity(0.2);
+
+  String _activityLabel(String type) {
+    switch (type) {
+      case 'run':
+        return 'Trčanje';
+      case 'cycle':
+        return 'Vožnja biciklom';
+      default:
+        return 'Šetnja';
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    _initLocationCallbacks();
     _initializeMap();
+  }
+
+  void _initLocationCallbacks() {
+    _locationService.onGpsLost = () {
+      if (!mounted) return;
+      setState(() => _gpsLost = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('GPS signal izgubljen – čekanje obnavljanja…'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    };
+
+    _locationService.onGpsRestored = () {
+      if (!mounted) return;
+      setState(() => _gpsLost = false);
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('GPS signal obnovljen'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    };
+
+    _locationService.onAutoSave = () {
+      if (!mounted || !_isTracking) return;
+      _saveActivity(isCheckpoint: true);
+    };
   }
 
   /// Returns the IDs of achievements that are locked before this save
@@ -104,131 +160,162 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          _isLoadingMap
-              ? const Center(child: CircularProgressIndicator())
-              : !_hasPermission
-                  ? _buildNoPermissionView()
-                  : FlutterMap(
-                      mapController: _mapController,
-                      options: MapOptions(
-                        center: _currentPosition ?? LatLng(44.0165, 21.0059),
-                        zoom: 15.0,
-                        minZoom: 3.0,
-                        maxZoom: 18.0,
-                      ),
-                      children: [
-                        TileLayer(
-                          urlTemplate:
-                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'com.example.trackstar',
+    return WithForegroundTask(
+      child: Scaffold(
+        body: Stack(
+          children: [
+            _isLoadingMap
+                ? const Center(child: CircularProgressIndicator())
+                : !_hasPermission
+                    ? _buildNoPermissionView()
+                    : FlutterMap(
+                        mapController: _mapController,
+                        options: MapOptions(
+                          center: _currentPosition ?? LatLng(44.0165, 21.0059),
+                          zoom: 15.0,
+                          minZoom: 3.0,
+                          maxZoom: 18.0,
                         ),
-                        if (_routePoints.isNotEmpty)
-                          PolylineLayer(polylines: [
-                            Polyline(
-                              points: _routePoints,
-                              strokeWidth: 4.0,
-                              color: _getRouteColor(),
-                            ),
-                          ]),
-                        if (_currentPosition != null)
-                          MarkerLayer(markers: [
-                            Marker(
-                              point: _currentPosition!,
-                              width: 40,
-                              height: 40,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.blue,
-                                  shape: BoxShape.circle,
-                                  border:
-                                      Border.all(color: Colors.white, width: 3),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.3),
-                                      blurRadius: 6,
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(Icons.navigation,
-                                    color: Colors.white, size: 20),
+                        children: [
+                          TileLayer(
+                            urlTemplate:
+                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.example.trackstar',
+                            errorTileCallback: (_, __,
+                                ___) {}, // shows blank tile when offline instead of crashing
+                          ),
+                          if (_routePoints.isNotEmpty)
+                            PolylineLayer(polylines: [
+                              Polyline(
+                                points: _routePoints,
+                                strokeWidth: 4.0,
+                                color: _getRouteColor(),
                               ),
-                            ),
-                          ]),
-                      ],
-                    ),
+                            ]),
+                          if (_currentPosition != null)
+                            MarkerLayer(markers: [
+                              Marker(
+                                point: _currentPosition!,
+                                width: 40,
+                                height: 40,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 3),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        blurRadius: 6,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(Icons.navigation,
+                                      color: Colors.white, size: 20),
+                                ),
+                              ),
+                            ]),
+                        ],
+                      ),
 
-          // Stats overlay — respects night mode
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: _cardBg,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildStatItem(_formatDuration(_duration), 'Vreme',
-                        Icons.timer_outlined),
-                    _buildStatItem(_distance.toStringAsFixed(2), 'Km',
-                        Icons.straighten_outlined),
-                    _buildStatItem(_speed.toStringAsFixed(1), 'km/h',
-                        Icons.speed_outlined),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Start / Stop button
-          Positioned(
-            bottom: 40,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: GestureDetector(
-                onTap: _isTracking ? _stopActivity : _showActivityTypeSelector,
+            // Stats overlay — respects night mode
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
                 child: Container(
-                  width: 80,
-                  height: 80,
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: _isTracking ? Colors.red : AppColors.primaryOrange,
-                    shape: BoxShape.circle,
+                    color: _cardBg,
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color:
-                            (_isTracking ? Colors.red : AppColors.primaryOrange)
-                                .withOpacity(0.4),
-                        blurRadius: 15,
-                        offset: const Offset(0, 5),
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  child: Icon(
-                    _isTracking ? Icons.stop : Icons.play_arrow,
-                    color: Colors.white,
-                    size: 40,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildStatItem(_formatDuration(_duration), 'Vreme',
+                          Icons.timer_outlined),
+                      _buildStatItem(_distance.toStringAsFixed(2), 'Km',
+                          Icons.straighten_outlined),
+                      _buildStatItem(_speed.toStringAsFixed(1), 'km/h',
+                          Icons.speed_outlined),
+                    ],
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+
+            if (_gpsLost || _internetLost)
+              Positioned(
+                top: 120,
+                left: 16,
+                right: 16,
+                child: Column(
+                  children: [
+                    if (_gpsLost)
+                      _buildStatusChip(
+                        icon: Icons.gps_off,
+                        label: 'GPS izgubljen – čekanje…',
+                        color: Colors.orange,
+                      ),
+                    if (_internetLost) ...[
+                      if (_gpsLost) const SizedBox(height: 6),
+                      _buildStatusChip(
+                        icon: Icons.wifi_off,
+                        label: 'Bez interneta – karta nije dostupna',
+                        color: Colors.grey[700]!,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+            // Start / Stop button
+            Positioned(
+              bottom: 40,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap:
+                      _isTracking ? _stopActivity : _showActivityTypeSelector,
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: _isTracking ? Colors.red : AppColors.primaryOrange,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_isTracking
+                                  ? Colors.red
+                                  : AppColors.primaryOrange)
+                              .withOpacity(0.4),
+                          blurRadius: 15,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      _isTracking ? Icons.stop : Icons.play_arrow,
+                      color: Colors.white,
+                      size: 40,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -253,20 +340,35 @@ class _ActivityScreenState extends State<ActivityScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: _sheetBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Izaberite aktivnost',
-                style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark)),
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _textSecondary.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Izaberite aktivnost',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: _textPrimary,
+              ),
+            ),
             const SizedBox(height: 24),
             _buildActivityOption(
               icon: Icons.directions_walk,
@@ -316,7 +418,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.textGrey.withOpacity(0.2)),
+          border: Border.all(color: _tileBorder),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -335,17 +437,16 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textDark)),
+                          color: _textPrimary)),
                   Text(subtitle,
-                      style:
-                          TextStyle(fontSize: 14, color: AppColors.textGrey)),
+                      style: TextStyle(fontSize: 14, color: _textSecondary)),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios, color: AppColors.textGrey, size: 16),
+            Icon(Icons.arrow_forward_ios, color: _textSecondary, size: 16),
           ],
         ),
       ),
@@ -353,31 +454,47 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   Future<void> _startActivity(String type) async {
+    // cant continue without notification permissions
+    final notifOk = await _ensureNotificationPermission();
+    if (!notifOk) return;
+
+    // Location permission check
     final hasPermission = await _locationService.checkPermissions();
     if (!hasPermission) {
       _showPermissionDeniedDialog();
       return;
     }
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _showLocationDisabledDialog();
       return;
     }
 
+    // Start GPS tracking
     final started = await _locationService.startTracking(activityType: type);
-    if (started) {
-      setState(() {
-        _activityType = type;
-        _isTracking = true;
-        _isPaused = false;
-        _startTime = DateTime.now();
-        _routePoints.clear();
-        _distance = 0.0;
-        _duration = 0;
-      });
-      _statsTimer =
-          Timer.periodic(const Duration(seconds: 1), (_) => _updateStats());
-    }
+    if (!started) return;
+
+    // Start foreground service notification
+    await _notifService.start(activityLabel: _activityLabel(type));
+
+    setState(() {
+      _activityType = type;
+      _isTracking = true;
+      _isPaused = false;
+      _startTime = DateTime.now();
+      _routePoints.clear();
+      _distance = 0.0;
+      _duration = 0;
+      _gpsLost = false;
+    });
+
+    // Check internet state for map tiles
+    _checkInternet();
+
+    // 1-second stats timer for screen updates and notifications
+    _statsTimer =
+        Timer.periodic(const Duration(seconds: 1), (_) => _updateStats());
   }
 
   Future<void> _stopActivity() async {
@@ -386,76 +503,84 @@ class _ActivityScreenState extends State<ActivityScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Završi aktivnost?'),
+        backgroundColor: _cardBg,
+        title: Text('Završi aktivnost?', style: TextStyle(color: _textPrimary)),
         content: Text(
           'Distanca: ${_distance.toStringAsFixed(2)} km\n'
           'Trajanje: ${_duration ~/ 60}m ${_duration % 60}s\n'
           'Prosečna brzina: ${avgSpeed.toStringAsFixed(1)} km/h',
+          style: TextStyle(color: _textSecondary),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Otkaži')),
           ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange),
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Završi')),
+              child:
+                  const Text('Završi', style: TextStyle(color: Colors.white))),
         ],
       ),
     );
 
-    if (confirmed == true) {
-      await _locationService.stopTracking();
-      _statsTimer?.cancel();
+    if (confirmed != true) return;
 
-      // capture which achievements were locked before saving
-      final lockedBefore = await _getLockedBefore();
+    await _locationService.stopTracking();
+    await _notifService.stop();
+    _statsTimer?.cancel();
 
-      await _saveActivity();
+    final lockedBefore = await _getLockedBefore();
+    await _saveActivity(isCheckpoint: false);
 
-      setState(() {
-        _isTracking = false;
-        _isPaused = false;
-      });
+    setState(() {
+      _isTracking = false;
+      _isPaused = false;
+      _gpsLost = false;
+    });
 
-      // find newly unlocked achievements and notify
-      final statsAfter = await DatabaseService.instance
-          .getUserStats(UserSession.instance.userId);
-      final actsAfter = statsAfter['totalActivities'] as int;
-      final distAfter = statsAfter['totalDistance'] as double;
-      final maxSingleAfter = statsAfter['maxSingleDistance'] as double;
+    final statsAfter = await DatabaseService.instance
+        .getUserStats(UserSession.instance.userId);
+    final newlyUnlocked = allAchievements
+        .where((a) =>
+            lockedBefore.contains(a.id) &&
+            a.isUnlocked(
+              statsAfter['totalActivities'] as int,
+              statsAfter['totalDistance'] as double,
+              statsAfter['maxSingleDistance'] as double,
+            ))
+        .toList();
 
-      final newlyUnlocked = allAchievements
-          .where((a) =>
-              lockedBefore.contains(a.id) &&
-              a.isUnlocked(actsAfter, distAfter, maxSingleAfter))
-          .toList();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Aktivnost sačuvana!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _notifyNewAchievements(newlyUnlocked, statsAfter);
-      }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aktivnost sačuvana!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _notifyNewAchievements(newlyUnlocked, statsAfter);
     }
   }
 
-  Future<void> _saveActivity() async {
+  Future<void> _saveActivity({required bool isCheckpoint}) async {
+    if (_startTime == null) return;
     final routePolyline = _locationService.encodeRoutePolyline();
     final activity = Activity(
       id: null,
       type: _activityType,
       distance: _distance,
       duration: _duration,
-      avgSpeed: _distance / (_duration / 3600),
+      avgSpeed: _distance / ((_duration == 0 ? 1 : _duration) / 3600),
       startTime: _startTime!,
       endTime: DateTime.now(),
       routePolyline: routePolyline.isNotEmpty ? routePolyline : null,
       userId: UserSession.instance.userId,
     );
     await DatabaseService.instance.insertActivity(activity);
+    if (isCheckpoint) {
+      print('Auto-save checkpoint saved (${_distance.toStringAsFixed(2)} km)');
+    }
   }
 
   void _updateStats() {
@@ -473,24 +598,31 @@ class _ActivityScreenState extends State<ActivityScreen> {
         _mapController.move(_currentPosition!, 17.0);
       }
     });
+
+    // Push updated stats to the notification widget
+    _notifService.updateStats(
+      activityLabel: _activityLabel(_activityType),
+      elapsed: _duration,
+      distanceKm: _distance,
+      speedKmh: _speed,
+    );
   }
 
   Future<void> _initializeMap() async {
     _hasPermission = await _locationService.checkPermissions();
     if (_hasPermission) {
       final position = await _locationService.getCurrentPosition();
-      if (position != null) {
+      if (position != null && mounted) {
+        // added mounted check
         setState(() {
           _currentPosition = LatLng(position.latitude, position.longitude);
           _isLoadingMap = false;
         });
         _mapController.move(_currentPosition!, 15.0);
-      } else {
-        setState(() => _isLoadingMap = false);
+        return; // early return avoids errors
       }
-    } else {
-      setState(() => _isLoadingMap = false);
     }
+    if (mounted) setState(() => _isLoadingMap = false);
   }
 
   void _showPermissionDeniedDialog() {
@@ -534,7 +666,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
   @override
   void dispose() {
     _statsTimer?.cancel();
-    if (_isTracking) _locationService.stopTracking();
+    if (_isTracking) {
+      _locationService.stopTracking();
+      _notifService.stop();
+    }
     super.dispose();
   }
 
@@ -587,5 +722,78 @@ class _ActivityScreenState extends State<ActivityScreen> {
       default:
         return AppColors.primaryOrange;
     }
+  }
+
+  Future<bool> _ensureNotificationPermission() async {
+    if (await _notifService.hasNotificationPermission()) return true;
+    final granted = await _notifService.requestNotificationPermission();
+    if (granted) return true;
+    if (mounted) {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          backgroundColor: _cardBg,
+          title: Text('Obaveštenja su potrebna',
+              style: TextStyle(color: _textPrimary)),
+          content: Text(
+            'TrackStar prikazuje vaše statistike kao obaveštenje na zaključanom '
+            'ekranu i statusnoj traci dok trenirate.\n\n'
+            'Bez ove dozvole praćenje aktivnosti nije moguće.',
+            style: TextStyle(color: _textSecondary),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Otkaži')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange),
+              onPressed: () {
+                Navigator.pop(context);
+                openAppSettings();
+              },
+              child: const Text('Otvori Podešavanja',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    }
+    return false;
+  }
+
+  Future<void> _checkInternet() async {
+    try {
+      final result = await InternetAddress.lookup('openstreetmap.org')
+          .timeout(const Duration(seconds: 3));
+      final ok = result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+      if (mounted) setState(() => _internetLost = !ok);
+    } catch (_) {
+      if (mounted) setState(() => _internetLost = true);
+    }
+  }
+
+  Widget _buildStatusChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 16),
+          const SizedBox(width: 6),
+          Text(label,
+              style: const TextStyle(color: Colors.white, fontSize: 13)),
+        ],
+      ),
+    );
   }
 }

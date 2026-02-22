@@ -92,16 +92,16 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
           Container(
             color: _cardBg,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                _filterChip('all', 'Sve'),
-                const SizedBox(width: 8),
-                _filterChip('walk', '🚶 Šetnja'),
-                const SizedBox(width: 8),
-                _filterChip('run', '🏃 Trčanje'),
-                const SizedBox(width: 8),
-                _filterChip('cycle', '🚴 Vožnja'),
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _filterChip('all', 'Sve'),
+                  _filterChip('walk', '🚶 Šetnja'),
+                  _filterChip('run', '🏃 Trčanje'),
+                  _filterChip('cycle', '🚴 Vožnja'),
+                ],
+              ),
             ),
           ),
           // List

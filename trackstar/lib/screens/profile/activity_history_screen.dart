@@ -70,36 +70,54 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgColor,
-      appBar: AppBar(
-        backgroundColor: _cardBg,
-        elevation: 0,
-        title: Text(
-          'Istorija aktivnosti',
-          style: TextStyle(
-            color: _textPrimary,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: _textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
       body: Column(
         children: [
-          // Filter chips
           Container(
             color: _cardBg,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+            child: SafeArea(
+              bottom: false,
+              child: Column(
                 children: [
-                  _filterChip('all', 'Sve'),
-                  _filterChip('walk', '🚶 Šetnja'),
-                  _filterChip('run', '🏃 Trčanje'),
-                  _filterChip('cycle', '🚴 Vožnja'),
+                  // AppBar content
+                  SizedBox(
+                    height: 56,
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.arrow_back, color: _textPrimary),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Istorija aktivnosti',
+                            style: TextStyle(
+                              color: _textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Filter chips
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _filterChip('all', 'Sve'),
+                          const SizedBox(width: 8),
+                          _filterChip('walk', '🚶 Šetnja'),
+                          const SizedBox(width: 8),
+                          _filterChip('run', '🏃 Trčanje'),
+                          const SizedBox(width: 8),
+                          _filterChip('cycle', '🚴 Vožnja'),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -129,7 +147,7 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
     return GestureDetector(
       onTap: () => setState(() => _filter = value),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? AppColors.primaryOrange : _bgColor,
           borderRadius: BorderRadius.circular(20),
@@ -142,7 +160,7 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
             color: selected ? Colors.white : _textSecondary,
           ),

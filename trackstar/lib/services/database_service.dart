@@ -89,7 +89,7 @@ class DatabaseService {
           }
         }
       },
-      version: 4,  // bumped from 3
+      version: 4, // bumped from 3
     );
   }
 
@@ -120,17 +120,19 @@ class DatabaseService {
         .toList();
   }
 
-    // Returns all users, used by the admin panel
+  // Returns all users, used by the admin panel
   Future<List<User>> getAllUsers() async {
     final db = await database;
     final maps = await db.query('users', orderBy: 'id ASC');
-    return maps.map((m) => User(
-          id: m['id'] as int?,
-          name: m['name'] as String,
-          email: m['email'] as String,
-          password: m['password'] as String,
-          isAdmin: (m['isAdmin'] as int? ?? 0) == 1,
-        )).toList();
+    return maps
+        .map((m) => User(
+              id: m['id'] as int?,
+              name: m['name'] as String,
+              email: m['email'] as String,
+              password: m['password'] as String,
+              isAdmin: (m['isAdmin'] as int? ?? 0) == 1,
+            ))
+        .toList();
   }
 
   // Returns how many users currently have isAdmin = 1
@@ -173,6 +175,17 @@ class DatabaseService {
     final db = await database;
     return db.insert('activities', activity.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> updateActivity(Activity activity) async {
+    if (activity.id == null) return;
+    final db = await database;
+    await db.update(
+      'activities',
+      activity.toMap(),
+      where: 'id = ?',
+      whereArgs: [activity.id],
+    );
   }
 
   Future<List<Activity>> getActivitiesByUser(int userId) async {

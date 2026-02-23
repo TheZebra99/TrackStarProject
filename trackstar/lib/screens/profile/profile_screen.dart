@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:trackstar/models/activity.dart';
 
 import 'package:trackstar/screens/profile/activity_history_screen.dart';
 import 'package:trackstar/screens/profile/achievements_screen.dart';
 import 'package:trackstar/screens/profile/edit_profile_screen.dart';
 import 'package:trackstar/screens/profile/favorite_routes_screen.dart';
 import 'package:trackstar/screens/profile/settings_panel.dart';
+import 'package:trackstar/screens/profile/statistics_screen.dart';
 import '../../utils/colors.dart';
 import '../../utils/app_settings.dart';
 import '../auth/login_screen.dart';
@@ -46,9 +48,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final stats = await DatabaseService.instance
           .getUserStats(UserSession.instance.userId);
       setState(() {
-        _totalActivities   = stats['totalActivities']   as int;
-        _totalDistance     = stats['totalDistance']     as double;
-        _totalDuration     = stats['totalDuration']     as int;
+        _totalActivities = stats['totalActivities'] as int;
+        _totalDistance = stats['totalDistance'] as double;
+        _totalDuration = stats['totalDuration'] as int;
         _maxSingleDistance = stats['maxSingleDistance'] as double;
       });
     } catch (e) {
@@ -76,7 +78,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   String _formatTotalDuration(int seconds) {
-    final hours   = seconds ~/ 3600;
+    final hours = seconds ~/ 3600;
     final minutes = (seconds % 3600) ~/ 60;
     return hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
   }
@@ -174,10 +176,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark        = AppSettings.instance.darkMode;
-    final bgColor       = isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
-    final cardBg        = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    final textPrimary   = isDark ? Colors.white : AppColors.textDark;
+    final isDark = AppSettings.instance.darkMode;
+    final bgColor =
+        isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
+    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textPrimary = isDark ? Colors.white : AppColors.textDark;
     final textSecondary = isDark ? Colors.white60 : AppColors.textGrey;
 
     return Scaffold(
@@ -187,9 +190,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         elevation: 0,
         title: Text('Profil',
             style: TextStyle(
-                color: textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.bold)),
+                color: textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: Icon(Icons.settings_outlined, color: textPrimary),
@@ -213,7 +214,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         GestureDetector(
                           onTap: _pickProfileImage,
                           child: Container(
-                            width: 100, height: 100,
+                            width: 100,
+                            height: 100,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: AppColors.primaryOrange.withOpacity(0.1),
@@ -227,22 +229,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             child: _profileImage == null
                                 ? const Icon(Icons.person,
-                                    size: 50,
-                                    color: AppColors.primaryOrange)
+                                    size: 50, color: AppColors.primaryOrange)
                                 : null,
                           ),
                         ),
                         Positioned(
-                          bottom: 0, right: 0,
+                          bottom: 0,
+                          right: 0,
                           child: GestureDetector(
                             onTap: _pickProfileImage,
                             child: Container(
-                              width: 32, height: 32,
+                              width: 32,
+                              height: 32,
                               decoration: BoxDecoration(
                                 color: AppColors.primaryOrange,
                                 shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: Colors.white, width: 2),
+                                border:
+                                    Border.all(color: Colors.white, width: 2),
                               ),
                               child: const Icon(Icons.edit,
                                   size: 16, color: Colors.white),
@@ -259,14 +262,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: textPrimary)),
                     const SizedBox(height: 4),
                     Text(UserSession.instance.email,
-                        style:
-                            TextStyle(fontSize: 14, color: textSecondary)),
+                        style: TextStyle(fontSize: 14, color: textSecondary)),
                     const SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildStatColumn('$_totalActivities',
-                            'Aktivnosti', textPrimary, textSecondary),
+                        _buildStatColumn('$_totalActivities', 'Aktivnosti',
+                            textPrimary, textSecondary),
                         Container(
                             height: 40,
                             width: 1,
@@ -274,16 +276,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildStatColumn(
                             '${_totalDistance.toStringAsFixed(1)} km',
                             'Ukupna distanca',
-                            textPrimary, textSecondary),
+                            textPrimary,
+                            textSecondary),
                         Container(
                             height: 40,
                             width: 1,
                             color: textSecondary.withOpacity(0.2)),
-                        _buildStatColumn(
-                            _formatTotalDuration(_totalDuration),
-                            'Vreme',
-                            textPrimary, textSecondary),
+                        _buildStatColumn(_formatTotalDuration(_totalDuration),
+                            'Vreme', textPrimary, textSecondary),
                       ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Statistics preview
+              Container(
+                color: cardBg,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Statistika ove nedelje',
+                            style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: textPrimary)),
+                        TextButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const StatisticsScreen(),
+                            ),
+                          ),
+                          child: const Text('Vidi sve',
+                              style: TextStyle(color: AppColors.primaryOrange)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    FutureBuilder<List<Activity>>(
+                      future: DatabaseService.instance
+                          .getActivitiesThisWeek(UserSession.instance.userId),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                          return Container(
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: textSecondary.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Center(
+                              child: Text('Nema aktivnosti ove nedelje',
+                                  style: TextStyle(color: textSecondary)),
+                            ),
+                          );
+                        }
+                        // Calculate proper height
+                        return SizedBox(
+                          height: 120,
+                          child: _buildWeekBarChart(
+                              snapshot.data!, textPrimary, textSecondary),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -320,8 +380,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           child: const Text('Vidi sve',
-                              style: TextStyle(
-                                  color: AppColors.primaryOrange)),
+                              style: TextStyle(color: AppColors.primaryOrange)),
                         ),
                       ],
                     ),
@@ -371,8 +430,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) =>
-                                  const FavoriteRoutesScreen())),
+                              builder: (_) => const FavoriteRoutesScreen())),
                     ),
                     _buildDivider(textSecondary),
                     _buildMenuItem(
@@ -380,11 +438,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Pomoć i podrška',
                       textPrimary: textPrimary,
                       textSecondary: textSecondary,
-                      onTap: () =>
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('Dolazi uskoro'),
-                                  duration: Duration(seconds: 1))),
+                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Dolazi uskoro'),
+                              duration: Duration(seconds: 1))),
                     ),
                     _buildDivider(textSecondary),
                     _buildMenuItem(
@@ -457,12 +514,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 60, height: 60,
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(
               color: AppColors.primaryOrange.withOpacity(0.1),
               shape: BoxShape.circle,
-              border: Border.all(
-                  color: AppColors.primaryOrange.withOpacity(0.5)),
+              border:
+                  Border.all(color: AppColors.primaryOrange.withOpacity(0.5)),
             ),
             child: Icon(a.icon, color: AppColors.primaryOrange, size: 28),
           ),
@@ -507,8 +565,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return ListTile(
       leading: Icon(icon, color: iconColor ?? textPrimary),
       title: Text(title, style: TextStyle(fontSize: 16, color: textPrimary)),
-      trailing:
-          Icon(Icons.arrow_forward_ios, size: 16, color: textSecondary),
+      trailing: Icon(Icons.arrow_forward_ios, size: 16, color: textSecondary),
       onTap: onTap,
     );
   }
@@ -524,8 +581,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Odjavi se'),
-        content:
-            const Text('Da li ste sigurni da želite da se odjavite?'),
+        content: const Text('Da li ste sigurni da želite da se odjavite?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
@@ -533,17 +589,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(
             onPressed: () {
               UserSession.instance.clearUser();
-              AppSettings.instance.resetToDefaults(); // reset night mode and accesibility settings
+              AppSettings.instance
+                  .resetToDefaults(); // reset night mode and accesibility settings
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginScreen()),
                 (route) => false,
               );
             },
-            child: const Text('Odjavi se',
-                style: TextStyle(color: Colors.red)),
+            child: const Text('Odjavi se', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildWeekBarChart(
+      List<Activity> activities, Color textPrimary, Color textSecondary) {
+    final now = DateTime.now();
+    final weekdays = ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned'];
+    final data = <String, double>{};
+
+    // Initialize all days with 0
+    for (int i = 6; i >= 0; i--) {
+      final day = now.subtract(Duration(days: i));
+      final weekday = weekdays[(day.weekday - 1) % 7];
+      data[weekday] = 0.0;
+    }
+
+    // Fill with actual data
+    for (final activity in activities) {
+      final weekday = weekdays[(activity.startTime.weekday - 1) % 7];
+      data[weekday] = (data[weekday] ?? 0.0) + activity.distance;
+    }
+
+    final maxDistance =
+        data.values.fold<double>(0, (max, v) => v > max ? v : max);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate available space for bars
+        final totalHeight = constraints.maxHeight;
+        final labelsAndSpacing = 38.0; // 14 + 4 + 6 + 14
+        final barMaxHeight =
+            (totalHeight - labelsAndSpacing).clamp(40.0, 100.0);
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: data.entries.map((entry) {
+            final height = maxDistance > 0
+                ? (entry.value / maxDistance) * barMaxHeight
+                : 4.0; // Minimum 4px for empty bars
+
+            return Flexible(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Top label (value)
+                  SizedBox(
+                    height: 14,
+                    child: Text(
+                      entry.value > 0
+                          ? '${entry.value.toStringAsFixed(1)}'
+                          : '',
+                      style: TextStyle(fontSize: 10, color: textSecondary),
+                      overflow: TextOverflow.visible,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Bar
+                  Container(
+                    width: 30,
+                    height: height.clamp(4.0, barMaxHeight),
+                    decoration: BoxDecoration(
+                      color: entry.value > 0
+                          ? AppColors.primaryOrange
+                          : textSecondary.withOpacity(0.1),
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(4)),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Bottom label (day)
+                  SizedBox(
+                    height: 14,
+                    child: Text(entry.key,
+                        style: TextStyle(fontSize: 10, color: textSecondary)),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 }

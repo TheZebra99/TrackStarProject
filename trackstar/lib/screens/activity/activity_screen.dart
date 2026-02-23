@@ -37,6 +37,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   DateTime? _startTime;
   List<LatLng> _routePoints = [];
   LatLng? _currentPosition;
+  int? _currentActivityId;
 
   double _distance = 0.0;
   int _duration = 0;
@@ -483,6 +484,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
       _isTracking = true;
       _isPaused = false;
       _startTime = DateTime.now();
+      _currentActivityId = null;
       _routePoints.clear();
       _distance = 0.0;
       _duration = 0;
@@ -567,7 +569,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
     if (_startTime == null) return;
     final routePolyline = _locationService.encodeRoutePolyline();
     final activity = Activity(
-      id: null,
+      id: _currentActivityId,
       type: _activityType,
       distance: _distance,
       duration: _duration,
@@ -577,9 +579,19 @@ class _ActivityScreenState extends State<ActivityScreen> {
       routePolyline: routePolyline.isNotEmpty ? routePolyline : null,
       userId: UserSession.instance.userId,
     );
-    await DatabaseService.instance.insertActivity(activity);
-    if (isCheckpoint) {
-      print('Auto-save checkpoint saved (${_distance.toStringAsFixed(2)} km)');
+
+    if (_currentActivityId == null) {
+      // First save - insert new activity
+      _currentActivityId =
+          await DatabaseService.instance.insertActivity(activity);
+      print('Activity created with ID: $_currentActivityId');
+    } else {
+      // Checkpoint or final save - update existing activity
+      await DatabaseService.instance.updateActivity(activity);
+      if (isCheckpoint) {
+        print(
+            'Auto-save checkpoint updated (${_distance.toStringAsFixed(2)} km)');
+      }
     }
   }
 

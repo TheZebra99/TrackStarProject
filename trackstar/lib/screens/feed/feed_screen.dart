@@ -46,9 +46,9 @@ class _FeedScreenState extends State<FeedScreen> {
           await DatabaseService.instance.getActivitiesThisWeek(userId);
       final stats = await DatabaseService.instance.getUserStats(userId);
       setState(() {
-        _activities      = activities;
+        _activities = activities;
         _totalActivities = stats['totalActivities'] as int;
-        _totalDistance   = stats['totalDistance']   as double;
+        _totalDistance = stats['totalDistance'] as double;
         _isLoading = false;
       });
     } catch (e) {
@@ -76,10 +76,11 @@ class _FeedScreenState extends State<FeedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark        = AppSettings.instance.darkMode;
-    final bgColor       = isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
-    final cardBg        = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    final textPrimary   = isDark ? Colors.white : AppColors.textDark;
+    final isDark = AppSettings.instance.darkMode;
+    final bgColor =
+        isDark ? const Color(0xFF121212) : AppColors.backgroundLight;
+    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textPrimary = isDark ? Colors.white : AppColors.textDark;
     final textSecondary = isDark ? Colors.white60 : AppColors.textGrey;
 
     return Scaffold(
@@ -89,9 +90,7 @@ class _FeedScreenState extends State<FeedScreen> {
         elevation: 0,
         title: Text('TrackStar',
             style: TextStyle(
-                color: textPrimary,
-                fontSize: 24,
-                fontWeight: FontWeight.bold)),
+                color: textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: Icon(Icons.notifications_outlined, color: textPrimary),
@@ -140,17 +139,20 @@ class _FeedScreenState extends State<FeedScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text('Spremni za novu avanturu?',
-                            style: TextStyle(
-                                color: Colors.white, fontSize: 14)),
+                            style:
+                                TextStyle(color: Colors.white, fontSize: 14)),
                         const SizedBox(height: 16),
                         Row(
                           children: [
-                            _buildQuickStat(
-                                '$_totalActivities', 'Aktivnosti'),
+                            _buildQuickStat('$_totalActivities', 'Aktivnosti'),
                             const SizedBox(width: 20),
                             _buildQuickStat(
                                 '${_totalDistance.toStringAsFixed(1)} km',
                                 'Ukupno'),
+                            const SizedBox(width: 16),
+                            _buildQuickStat(
+                                '${_calculateWeekCalories().toStringAsFixed(0)}',
+                                'Kalorije'),
                           ],
                         ),
                       ],
@@ -172,8 +174,8 @@ class _FeedScreenState extends State<FeedScreen> {
                           TextButton(
                             onPressed: _openActivityHistory,
                             child: const Text('Vidi sve',
-                                style: TextStyle(
-                                    color: AppColors.primaryOrange)),
+                                style:
+                                    TextStyle(color: AppColors.primaryOrange)),
                           ),
                       ],
                     ),
@@ -183,8 +185,8 @@ class _FeedScreenState extends State<FeedScreen> {
                     _buildEmptyState(textSecondary)
                   else
                     ..._activities
-                        .map((a) => _buildActivityCard(a, cardBg,
-                            textPrimary, textSecondary))
+                        .map((a) => _buildActivityCard(
+                            a, cardBg, textPrimary, textSecondary))
                         .toList(),
                 ],
               ),
@@ -192,8 +194,21 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-  Widget _buildActivityCard(Activity activity, Color cardBg,
-      Color textPrimary, Color textSecondary) {
+  double _calculateWeekCalories() {
+    double total = 0.0;
+    final caloriesPerKm = {
+      'walk': 65.0,
+      'run': 80.0,
+      'cycle': 40.0,
+    };
+    for (final activity in _activities) {
+      total += activity.distance * (caloriesPerKm[activity.type] ?? 50.0);
+    }
+    return total;
+  }
+
+  Widget _buildActivityCard(
+      Activity activity, Color cardBg, Color textPrimary, Color textSecondary) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -217,8 +232,7 @@ class _FeedScreenState extends State<FeedScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: _getActivityColor(activity.type)
-                        .withOpacity(0.1),
+                    color: _getActivityColor(activity.type).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(activity.iconEmoji,
@@ -236,19 +250,14 @@ class _FeedScreenState extends State<FeedScreen> {
                               color: textPrimary)),
                       const SizedBox(height: 4),
                       Text(_formatDate(activity.startTime),
-                          style: TextStyle(
-                              fontSize: 12, color: textSecondary)),
+                          style: TextStyle(fontSize: 12, color: textSecondary)),
                     ],
                   ),
                 ),
                 IconButton(
                   icon: Icon(
-                    activity.isFavorite
-                        ? Icons.star
-                        : Icons.star_border,
-                    color: activity.isFavorite
-                        ? Colors.amber
-                        : textSecondary,
+                    activity.isFavorite ? Icons.star : Icons.star_border,
+                    color: activity.isFavorite ? Colors.amber : textSecondary,
                   ),
                   onPressed: () => _toggleFavorite(activity),
                 ),
@@ -264,12 +273,8 @@ class _FeedScreenState extends State<FeedScreen> {
                     Icons.straighten_outlined, textPrimary, textSecondary),
                 _buildStatCol(activity.formattedDuration, 'Vreme',
                     Icons.timer_outlined, textPrimary, textSecondary),
-                _buildStatCol(
-                    '${activity.avgSpeed.toStringAsFixed(1)} km/h',
-                    'Brzina',
-                    Icons.speed_outlined,
-                    textPrimary,
-                    textSecondary),
+                _buildStatCol('${activity.avgSpeed.toStringAsFixed(1)} km/h',
+                    'Brzina', Icons.speed_outlined, textPrimary, textSecondary),
               ],
             ),
           ),
@@ -281,17 +286,15 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-  Widget _buildStatCol(String value, String label, IconData icon,
-      Color primary, Color secondary) {
+  Widget _buildStatCol(String value, String label, IconData icon, Color primary,
+      Color secondary) {
     return Column(
       children: [
         Icon(icon, size: 20, color: secondary),
         const SizedBox(height: 4),
         Text(value,
             style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: primary)),
+                fontSize: 16, fontWeight: FontWeight.bold, color: primary)),
         Text(label, style: TextStyle(fontSize: 12, color: secondary)),
       ],
     );
@@ -299,10 +302,8 @@ class _FeedScreenState extends State<FeedScreen> {
 
   Widget _buildRouteMap(Activity activity) {
     final List<LatLng> routePoints;
-    if (activity.routePolyline != null &&
-        activity.routePolyline!.isNotEmpty) {
-      final decoded =
-          LocationService.decodePolyline(activity.routePolyline!);
+    if (activity.routePolyline != null && activity.routePolyline!.isNotEmpty) {
+      final decoded = LocationService.decodePolyline(activity.routePolyline!);
       routePoints = decoded.map((p) => LatLng(p[0], p[1])).toList();
     } else {
       routePoints = [];
@@ -329,8 +330,7 @@ class _FeedScreenState extends State<FeedScreen> {
               const SizedBox(height: 8),
               Text('Nema podataka o ruti',
                   style: TextStyle(
-                    color: _getActivityColor(activity.type)
-                        .withOpacity(0.7),
+                    color: _getActivityColor(activity.type).withOpacity(0.7),
                     fontWeight: FontWeight.w600,
                   )),
             ],
@@ -344,25 +344,29 @@ class _FeedScreenState extends State<FeedScreen> {
     double minLng = routePoints.first.longitude;
     double maxLng = routePoints.first.longitude;
     for (final p in routePoints) {
-      if (p.latitude  < minLat) minLat = p.latitude;
-      if (p.latitude  > maxLat) maxLat = p.latitude;
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
       if (p.longitude < minLng) minLng = p.longitude;
       if (p.longitude > maxLng) maxLng = p.longitude;
     }
-    final center =
-        LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+    final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
     final spread = (maxLat - minLat) > (maxLng - minLng)
         ? maxLat - minLat
         : maxLng - minLng;
-    final zoom = spread < 0.002
-        ? 17.0
-        : spread < 0.01
+    // new zoom levels
+    final zoom = spread < 0.001
+        ? 16.0
+        : spread < 0.005
             ? 15.0
-            : spread < 0.05
-                ? 13.0
-                : spread < 0.2
-                    ? 11.0
-                    : 9.0;
+            : spread < 0.02
+                ? 14.0
+                : spread < 0.05
+                    ? 13.0
+                    : spread < 0.1
+                        ? 12.0
+                        : spread < 0.2
+                            ? 11.0
+                            : 10.0;
 
     return Container(
       height: 160,
@@ -371,8 +375,7 @@ class _FeedScreenState extends State<FeedScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: _getActivityColor(activity.type).withOpacity(0.3),
-            width: 2),
+            color: _getActivityColor(activity.type).withOpacity(0.3), width: 2),
       ),
       child: IgnorePointer(
         child: FlutterMap(
@@ -382,8 +385,7 @@ class _FeedScreenState extends State<FeedScreen> {
               interactiveFlags: InteractiveFlag.none),
           children: [
             TileLayer(
-              urlTemplate:
-                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.example.trackstar',
             ),
             PolylineLayer(polylines: [
@@ -396,7 +398,8 @@ class _FeedScreenState extends State<FeedScreen> {
             MarkerLayer(markers: [
               Marker(
                 point: routePoints.first,
-                width: 24, height: 24,
+                width: 24,
+                height: 24,
                 child: Container(
                   decoration: BoxDecoration(
                       color: Colors.green,
@@ -408,14 +411,14 @@ class _FeedScreenState extends State<FeedScreen> {
               ),
               Marker(
                 point: routePoints.last,
-                width: 24, height: 24,
+                width: 24,
+                height: 24,
                 child: Container(
                   decoration: BoxDecoration(
                       color: Colors.red,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2)),
-                  child: const Icon(Icons.stop,
-                      color: Colors.white, size: 14),
+                  child: const Icon(Icons.stop, color: Colors.white, size: 14),
                 ),
               ),
             ]),
@@ -427,10 +430,14 @@ class _FeedScreenState extends State<FeedScreen> {
 
   Color _getActivityColor(String type) {
     switch (type) {
-      case 'walk':  return Colors.green;
-      case 'run':   return AppColors.primaryOrange;
-      case 'cycle': return Colors.blue;
-      default:      return AppColors.primaryOrange;
+      case 'walk':
+        return Colors.green;
+      case 'run':
+        return AppColors.primaryOrange;
+      case 'cycle':
+        return Colors.blue;
+      default:
+        return AppColors.primaryOrange;
     }
   }
 
@@ -442,8 +449,13 @@ class _FeedScreenState extends State<FeedScreen> {
       return 'Juče u ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
     } else if (diff.inDays < 7) {
       const days = [
-        'Ponedeljak', 'Utorak', 'Sreda', 'Četvrtak',
-        'Petak', 'Subota', 'Nedelja'
+        'Ponedeljak',
+        'Utorak',
+        'Sreda',
+        'Četvrtak',
+        'Petak',
+        'Subota',
+        'Nedelja'
       ];
       return days[date.weekday - 1];
     }
@@ -487,8 +499,8 @@ class _FeedScreenState extends State<FeedScreen> {
                 fontSize: 24,
                 fontWeight: FontWeight.bold)),
         Text(label,
-            style: TextStyle(
-                color: Colors.white.withOpacity(0.9), fontSize: 12)),
+            style:
+                TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12)),
       ],
     );
   }

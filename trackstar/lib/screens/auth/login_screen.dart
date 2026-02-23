@@ -296,6 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
       keyboardType: keyboardType,
       obscureText: obscure,
       validator: validator,
+      magnifierConfiguration: TextMagnifierConfiguration.disabled,
       style: TextStyle(color: textColor),
       decoration: InputDecoration(
         labelText: label,
